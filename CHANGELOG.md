@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Skinned playlist's bottom mini-transport area no longer covers skin
+  artwork.** The 97×13 rectangle painted over the mini-player buttons
+  baked into pledit.bmp's bottom-right corner sprite has been removed.
+  Any solid fill — black or pledit `Normal=` — clipped surrounding skin
+  artwork on many skins, leaving a visible patch below the running-time
+  LCD. The mini buttons are now shown as the artist drew them; they
+  remain non-interactive (main-window transport is still the single
+  source of truth), but the strip blends correctly with every skin.
+  Unskinned mode is unchanged.
+
 - **Skinned playlist now uses the skin's `pledit.txt` colors.** The row
   background and selection highlight were hardcoded to black and Wamp's
   built-in blue, hiding the `normalbg` and `selectedbg` values from the
