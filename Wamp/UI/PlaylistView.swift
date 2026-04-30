@@ -229,16 +229,14 @@ class PlaylistView: NSView {
             br.draw(in: NSRect(x: w - 150, y: 0, width: 150, height: 38))
         }
 
-        // Mask the mini-player buttons and ":"-timer baked into the BR corner.
-        // Classic Winamp wired these to playlist-local transport; we don't need
-        // them (main-window transport is the single source of truth), so fill
-        // the skin's playlist background over top-down y=18..31 × x=4..101
-        // inside the 150×38 sprite. AppKit: y=7..20. Stops short of the LIST
-        // OPTS box at x≥105 and keeps the outer frame (bottom 2px, left/right
-        // edges) intact. Pulled from pledit.txt's Normal= via playlistStyle so
-        // the masked area blends with the skin instead of showing as black.
-        WinampTheme.provider.playlistStyle.normalBG.setFill()
-        NSRect(x: w - 146, y: 7, width: 97, height: 13).fill()
+        // The mini-player buttons baked into the BR corner sprite are left
+        // visible as decorative pixels. Classic Winamp wired them to
+        // playlist-local transport; Wamp routes transport through the main
+        // window only, so they're non-interactive for now. A previous
+        // iteration painted a 97×13 rectangle over them, but any solid fill
+        // (black or pledit normalBG) clipped surrounding skin artwork on
+        // many skins. Showing the sprite as the artist drew it is the
+        // cleanest base — wiring the buttons up later is purely additive.
 
         // Render the compact "N / H:MM" summary via text.bmp inside the baked
         // "running time" LCD area of the bottom-right corner sprite. The full
