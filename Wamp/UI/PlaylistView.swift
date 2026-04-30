@@ -850,19 +850,15 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
             return true
         }
 
-        // External file drop on table
+        // External file drop on table — route through AppDelegate.handleOpenURLs so .cue
+        // and .m3u/.m3u8 dispatch to addCueSheet / addM3U. Going through addURLs directly
+        // drops them silently because they aren't in Track.supportedExtensions.
         guard let items = info.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] else {
             return false
         }
         Task { @MainActor in
-            for url in items {
-                var isDir: ObjCBool = false
-                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
-                if isDir.boolValue {
-                    await playlistManager?.addFolder(url)
-                } else {
-                    await playlistManager?.addURLs([url])
-                }
+            if let appDelegate = NSApp.delegate as? AppDelegate {
+                await appDelegate.handleOpenURLs(items)
             }
         }
         return true

@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Dropping a `.cue` (or `.m3u`/`.m3u8`) onto playlist rows now works.**
+  The table view's drop handler routed external files through
+  `PlaylistManager.addURLs` directly, which filters by
+  `Track.supportedExtensions` (audio only) and silently dropped cue and
+  m3u files. Drops on the empty area of the playlist already worked
+  because they went through `AppDelegate.handleOpenURLs`. Both paths
+  now share that single routing entry point, so cue sheets and m3u
+  playlists are accepted regardless of where on the playlist the user
+  releases them.
+
 - **Skinned playlist's bottom mini-transport area no longer covers skin
   artwork.** The 97×13 rectangle painted over the mini-player buttons
   baked into pledit.bmp's bottom-right corner sprite has been removed.
