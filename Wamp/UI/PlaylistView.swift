@@ -897,17 +897,23 @@ class PlaylistTableView: NSTableView {
     }
 }
 
-// Custom row view with Winamp-style blue selection
+// Custom row view: uses skin's pledit colors when a skin is loaded,
+// falls back to Wamp's built-in black bg + blue selection otherwise.
 class WinampRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
-        if isSelected {
-            WinampTheme.selectionBlue.setFill()
-            bounds.fill()
-        }
+        guard isSelected else { return }
+        let color = WinampTheme.skinIsActive
+            ? WinampTheme.provider.playlistStyle.selectedBG
+            : WinampTheme.selectionBlue
+        color.setFill()
+        bounds.fill()
     }
 
     override func drawBackground(in dirtyRect: NSRect) {
-        NSColor.black.setFill()
+        let color = WinampTheme.skinIsActive
+            ? WinampTheme.provider.playlistStyle.normalBG
+            : NSColor.black
+        color.setFill()
         bounds.fill()
     }
 }

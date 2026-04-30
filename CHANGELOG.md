@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Skinned playlist now uses the skin's `pledit.txt` colors.** The row
+  background and selection highlight were hardcoded to black and Wamp's
+  built-in blue, hiding the `normalbg` and `selectedbg` values from the
+  loaded skin. `WinampRowView` now reads `WinampTheme.provider.playlistStyle`
+  when a skin is active, so Bento-style brown rows and skin-defined
+  selection colors render correctly. Unskinned mode is unchanged.
+
 ### Changed
 
 - **Multi-select in the playlist.** Standard macOS selection now works:
