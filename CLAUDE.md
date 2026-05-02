@@ -47,7 +47,8 @@ Wamp/
 │   ├── SkinManager.swift        — atomic skin lifecycle (load / unload / publish)
 │   ├── SkinModel.swift          — parsed skin (sprites, regions, colors, viscolors)
 │   ├── SkinParser.swift + helpers — `.wsz` ZIP unpacking, `IniParser`, `RegionParser`,
-│   │                                `ViscolorsParser`, `EqGraphColorsParser`, `PlaylistStyleParser`
+│   │                                `ViscolorsParser`, `EqGraphColorsParser`, `PlaylistStyleParser`,
+│   │                                `SkinParserUtils` (ZIP/image/nums_ex utilities)
 │   ├── SpriteCatalog.swift      — sprite slicing from `main.bmp`, `cbuttons.bmp`, etc.
 │   ├── TextSpriteRenderer.swift — bitmap-font text rendering from `text.bmp` / `nums.bmp`
 │   ├── SkinProvider.swift       — protocol + `BuiltInSkin` fallback (no skin loaded)
@@ -69,6 +70,7 @@ Wamp/
 │       ├── EQResponseView.swift  — EQ frequency response curve
 │       ├── PlayStateIndicator.swift — play/pause/stop glyph next to the LCD
 │       ├── PlaylistSkinScroller.swift — custom NSScroller drawing the skinned thumb from `pledit.bmp`
+│       ├── AngularLegacyScroller.swift — flat NSScroller for the unskinned playlist (matches angular chrome)
 │       ├── WinampButton.swift    — themed button component
 │       └── WinampSlider.swift    — themed slider component
 └── Utils/
@@ -116,7 +118,7 @@ View → Double Size (Cmd+Shift+D) scales the whole window via `WinampTheme.scal
 - Supported audio formats: MP3, AAC, M4A, FLAC, WAV, AIFF, AIF (single source of truth: `Track.supportedExtensions`)
 - Supported playlist formats: M3U, M3U8, CUE (external `.cue` and FLAC-embedded CUESHEET)
 - All UI components are custom `NSView` subclasses — no Interface Builder usage
-- Playlist supports drag-and-drop (files from Finder), keyboard navigation (arrows, Return to play), and search
+- Playlist supports drag-and-drop (files from Finder), keyboard navigation (arrows, Return to play), search, and multi-select (Shift/Cmd-click + Cmd+A)
 - Non-goals (Spotify playback, Apple Music streaming, iCloud sync) are documented in `docs/non-goals.md` — read before proposing streaming features
 - Changelog is `CHANGELOG.md` (Keep a Changelog format); add an `[Unreleased]` entry per user-visible change
 
