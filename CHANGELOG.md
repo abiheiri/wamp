@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **CUE sheets with CRLF line endings now parse correctly.** EAC and
+  other Windows tools write CUEs with `\r\n` terminators. Swift treats
+  `\r\n` as a single extended grapheme cluster, so a Character-level
+  newline split never matched and the entire file collapsed into one
+  "line", triggering `noTracks`. The parser now splits on Unicode
+  scalars instead, so each `\r` and `\n` is treated independently.
+
 - **Dropping a `.cue` (or `.m3u`/`.m3u8`) onto playlist rows now works.**
   The table view's drop handler routed external files through
   `PlaylistManager.addURLs` directly, which filters by
