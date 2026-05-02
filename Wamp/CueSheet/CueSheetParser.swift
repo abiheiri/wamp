@@ -52,9 +52,17 @@ enum CueSheetParser {
             currentFile = nil
         }
 
-        let lines = text.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" || $0 == "\r" })
-        for (idx, raw) in lines.enumerated() {
-            let line = raw.trimmingCharacters(in: .whitespaces)
+        // Split on unicode scalars rather than Characters: in Swift "\r\n" is a single
+        // extended grapheme cluster, so a Character-level predicate matching "\r" or "\n"
+        // never fires for CRLF and the whole file collapses to one line. EAC and other
+        // Windows tooling write CRLF, which is exactly the case that broke before.
+        let lineScalars = text.unicodeScalars.split(
+            omittingEmptySubsequences: false,
+            whereSeparator: { $0 == "\n" || $0 == "\r" }
+        )
+        for (idx, raw) in lineScalars.enumerated() {
+            let line = String(String.UnicodeScalarView(raw))
+                .trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
             let lineNo = idx + 1
             let (keyword, rest) = splitKeyword(line)

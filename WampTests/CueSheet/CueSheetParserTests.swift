@@ -165,6 +165,30 @@ struct CueSheetParserTests {
         #expect(sheet.files[0].path == "a long name.flac")
     }
 
+    @Test func parsesCRLFLineEndings() throws {
+        // EAC and other Windows tools write CUEs with CRLF. In Swift, "\r\n" is a
+        // single Character (extended grapheme cluster), so a `whereSeparator` predicate
+        // comparing against `"\r"` or `"\n"` Characters never matches the CRLF cluster.
+        // Without explicit handling the whole file collapses to one "line" and parsing
+        // produces noTracks.
+        let cueLines = [
+            "PERFORMER \"DJ X\"",
+            "TITLE \"DJ Mix vol. 3\"",
+            "FILE \"mix.flac\" WAVE",
+            "  TRACK 01 AUDIO",
+            "    TITLE \"Opening\"",
+            "    INDEX 01 00:00:00",
+            "  TRACK 02 AUDIO",
+            "    TITLE \"Second tune\"",
+            "    INDEX 01 05:32:40",
+        ]
+        let crlf = cueLines.joined(separator: "\r\n")
+        let sheet = try CueSheetParser.parse(crlf.data(using: .utf8)!)
+        #expect(sheet.title == "DJ Mix vol. 3")
+        #expect(sheet.files.first?.tracks.count == 2)
+        #expect(sheet.files.first?.tracks[1].startFrames == (5*60 + 32)*75 + 40)
+    }
+
     // MARK: - Fixture-backed tests
 
     @Test func basicFixture() throws {
