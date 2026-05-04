@@ -23,13 +23,14 @@ class PlaylistView: NSView {
     private var lastColumnWidth: CGFloat = 0
     private var dragOrigin: NSPoint?
 
-    // Set by MainWindow.bindToModels. Baked into pledit.bmp's BR corner;
-    // mirrors classic Winamp's playlist-local transport row.
+    // Set by MainWindow.bindToModels / AppDelegate. Baked into pledit.bmp's
+    // BR corner; mirrors classic Winamp's playlist-local transport row.
     var onMiniPrev:  (() -> Void)?
     var onMiniPlay:  (() -> Void)?
     var onMiniPause: (() -> Void)?
     var onMiniStop:  (() -> Void)?
     var onMiniNext:  (() -> Void)?
+    var onMiniEject: (() -> Void)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -237,11 +238,12 @@ class PlaylistView: NSView {
             br.draw(in: NSRect(x: w - 150, y: 0, width: 150, height: 38))
         }
 
-        // The mini-player buttons baked into the BR corner sprite are shown
-        // as the skin artist drew them — pledit.bmp doesn't ship pressed
-        // variants for this row, so we don't redraw on click. Hit-testing
-        // and routing through onMiniPrev / onMiniPlay / onMiniPause /
-        // onMiniStop / onMiniNext lives in mouseDown below.
+        // The six mini-player buttons baked into the BR corner sprite
+        // (PREV / PLAY / PAUSE / STOP / NEXT / EJECT) are shown as the
+        // skin artist drew them — pledit.bmp doesn't ship pressed variants
+        // for this row, so we don't redraw on click. Hit-testing and
+        // routing through onMiniPrev / onMiniPlay / onMiniPause /
+        // onMiniStop / onMiniNext / onMiniEject lives in mouseDown below.
 
         // Render the compact "N / H:MM" summary via text.bmp inside the baked
         // "running time" LCD area of the bottom-right corner sprite. The full
@@ -673,22 +675,22 @@ class PlaylistView: NSView {
     private static let skinnedMiscRect = NSRect(x: 98, y: 10, width: 22, height: 18)
 
     // LIST OPTS lives in the bottom-right corner (150×38 at x=w-150).
-    // Bounds measured directly from pledit.bmp BR-corner pixels: the visible
-    // raised box spans top-down (105, 8, 23, 18) → playlist-local x = w-45,
-    // AppKit y = 38 - 8 - 18 = 12.
+    // Webamp #playlist-list-menu: bottom:12, right:22, w:22, h:18.
     private func skinnedListOptsRect() -> NSRect {
-        NSRect(x: bounds.width - 45, y: 12, width: 23, height: 18)
+        NSRect(x: bounds.width - 44, y: 12, width: 22, height: 18)
     }
 
-    // Mini-transport baked into pledit.bmp's BR corner. Positions match
-    // Webamp's #playlist-{previous,play,pause,stop,next}-button: top-down
-    // y=18, height=18, widths of 22 starting at left-offsets {5, 27, 49,
-    // 71, 93} inside the 150-wide corner. AppKit-y = 38 - 18 - 18 = 2.
-    private func skinnedMiniPrevRect()  -> NSRect { NSRect(x: bounds.width - 145, y: 2, width: 22, height: 18) }
-    private func skinnedMiniPlayRect()  -> NSRect { NSRect(x: bounds.width - 123, y: 2, width: 22, height: 18) }
-    private func skinnedMiniPauseRect() -> NSRect { NSRect(x: bounds.width - 101, y: 2, width: 22, height: 18) }
-    private func skinnedMiniStopRect()  -> NSRect { NSRect(x: bounds.width -  79, y: 2, width: 22, height: 18) }
-    private func skinnedMiniNextRect()  -> NSRect { NSRect(x: bounds.width -  57, y: 2, width: 22, height: 18) }
+    // Six baked mini-transport buttons in pledit.bmp's BR corner. Webamp
+    // .playlist-action-buttons: top:22, left:3, children 10×10, packed in
+    // a flex row. AppKit y = 38 - 22 - 10 = 6. Corner draws at
+    // (bounds.width - 150, 0), so corner-local x maps to
+    // bounds.width - 150 + corner_x.
+    private func skinnedMiniPrevRect()  -> NSRect { NSRect(x: bounds.width - 147, y: 6, width: 10, height: 10) }
+    private func skinnedMiniPlayRect()  -> NSRect { NSRect(x: bounds.width - 137, y: 6, width: 10, height: 10) }
+    private func skinnedMiniPauseRect() -> NSRect { NSRect(x: bounds.width - 127, y: 6, width: 10, height: 10) }
+    private func skinnedMiniStopRect()  -> NSRect { NSRect(x: bounds.width - 117, y: 6, width: 10, height: 10) }
+    private func skinnedMiniNextRect()  -> NSRect { NSRect(x: bounds.width - 107, y: 6, width: 10, height: 10) }
+    private func skinnedMiniEjectRect() -> NSRect { NSRect(x: bounds.width -  97, y: 6, width: 10, height: 10) }
 
     // MARK: - Mouse handling (skinned mode: dragging + bottom buttons)
     override func mouseDown(with event: NSEvent) {
@@ -709,14 +711,12 @@ class PlaylistView: NSView {
             if Self.skinnedSelRect.contains(point)  { showSelMenu(); return }
             if Self.skinnedMiscRect.contains(point) { showMiscMenu(); return }
             if skinnedListOptsRect().contains(point) { showListOptsMenu(); return }
-            // LIST OPTS first so its rect wins in the small overlap with
-            // mini-NEXT (x∈[w-45,w-35] × y∈[12,20]); mini-NEXT keeps its
-            // bottom strip y∈[2,12), which is where the eye targets it.
             if skinnedMiniPrevRect().contains(point)  { onMiniPrev?();  return }
             if skinnedMiniPlayRect().contains(point)  { onMiniPlay?();  return }
             if skinnedMiniPauseRect().contains(point) { onMiniPause?(); return }
             if skinnedMiniStopRect().contains(point)  { onMiniStop?();  return }
             if skinnedMiniNextRect().contains(point)  { onMiniNext?();  return }
+            if skinnedMiniEjectRect().contains(point) { onMiniEject?(); return }
         }
 
         super.mouseDown(with: event)
