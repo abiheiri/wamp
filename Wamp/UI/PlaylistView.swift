@@ -23,6 +23,14 @@ class PlaylistView: NSView {
     private var lastColumnWidth: CGFloat = 0
     private var dragOrigin: NSPoint?
 
+    // Set by MainWindow.bindToModels. Baked into pledit.bmp's BR corner;
+    // mirrors classic Winamp's playlist-local transport row.
+    var onMiniPrev:  (() -> Void)?
+    var onMiniPlay:  (() -> Void)?
+    var onMiniPause: (() -> Void)?
+    var onMiniStop:  (() -> Void)?
+    var onMiniNext:  (() -> Void)?
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
@@ -229,14 +237,11 @@ class PlaylistView: NSView {
             br.draw(in: NSRect(x: w - 150, y: 0, width: 150, height: 38))
         }
 
-        // The mini-player buttons baked into the BR corner sprite are left
-        // visible as decorative pixels. Classic Winamp wired them to
-        // playlist-local transport; Wamp routes transport through the main
-        // window only, so they're non-interactive for now. A previous
-        // iteration painted a 97×13 rectangle over them, but any solid fill
-        // (black or pledit normalBG) clipped surrounding skin artwork on
-        // many skins. Showing the sprite as the artist drew it is the
-        // cleanest base — wiring the buttons up later is purely additive.
+        // The mini-player buttons baked into the BR corner sprite are shown
+        // as the skin artist drew them — pledit.bmp doesn't ship pressed
+        // variants for this row, so we don't redraw on click. Hit-testing
+        // and routing through onMiniPrev / onMiniPlay / onMiniPause /
+        // onMiniStop / onMiniNext lives in mouseDown below.
 
         // Render the compact "N / H:MM" summary via text.bmp inside the baked
         // "running time" LCD area of the bottom-right corner sprite. The full
@@ -675,6 +680,16 @@ class PlaylistView: NSView {
         NSRect(x: bounds.width - 45, y: 12, width: 23, height: 18)
     }
 
+    // Mini-transport baked into pledit.bmp's BR corner. Positions match
+    // Webamp's #playlist-{previous,play,pause,stop,next}-button: top-down
+    // y=18, height=18, widths of 22 starting at left-offsets {5, 27, 49,
+    // 71, 93} inside the 150-wide corner. AppKit-y = 38 - 18 - 18 = 2.
+    private func skinnedMiniPrevRect()  -> NSRect { NSRect(x: bounds.width - 145, y: 2, width: 22, height: 18) }
+    private func skinnedMiniPlayRect()  -> NSRect { NSRect(x: bounds.width - 123, y: 2, width: 22, height: 18) }
+    private func skinnedMiniPauseRect() -> NSRect { NSRect(x: bounds.width - 101, y: 2, width: 22, height: 18) }
+    private func skinnedMiniStopRect()  -> NSRect { NSRect(x: bounds.width -  79, y: 2, width: 22, height: 18) }
+    private func skinnedMiniNextRect()  -> NSRect { NSRect(x: bounds.width -  57, y: 2, width: 22, height: 18) }
+
     // MARK: - Mouse handling (skinned mode: dragging + bottom buttons)
     override func mouseDown(with event: NSEvent) {
         guard WinampTheme.skinIsActive else { super.mouseDown(with: event); return }
@@ -687,13 +702,21 @@ class PlaylistView: NSView {
         }
 
         // Bottom button strip — baked pledit.bmp sprites for ADD/REM/SEL/MISC
-        // on the left, LIST OPTS on the right.
+        // on the left, LIST OPTS + mini-transport on the right.
         if point.y < 38 {
             if Self.skinnedAddRect.contains(point)  { showAddMenu(); return }
             if Self.skinnedRemRect.contains(point)  { showRemMenu(); return }
             if Self.skinnedSelRect.contains(point)  { showSelMenu(); return }
             if Self.skinnedMiscRect.contains(point) { showMiscMenu(); return }
             if skinnedListOptsRect().contains(point) { showListOptsMenu(); return }
+            // LIST OPTS first so its rect wins in the small overlap with
+            // mini-NEXT (x∈[w-45,w-35] × y∈[12,20]); mini-NEXT keeps its
+            // bottom strip y∈[2,12), which is where the eye targets it.
+            if skinnedMiniPrevRect().contains(point)  { onMiniPrev?();  return }
+            if skinnedMiniPlayRect().contains(point)  { onMiniPlay?();  return }
+            if skinnedMiniPauseRect().contains(point) { onMiniPause?(); return }
+            if skinnedMiniStopRect().contains(point)  { onMiniStop?();  return }
+            if skinnedMiniNextRect().contains(point)  { onMiniNext?();  return }
         }
 
         super.mouseDown(with: event)

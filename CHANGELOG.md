@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Mini-transport buttons in the skinned playlist are now interactive.**
+  The five baked buttons (prev / play / pause / stop / next) in
+  pledit.bmp's bottom-right corner now respond to clicks and route
+  through the same `AudioEngine` + `PlaylistManager` calls as the main
+  transport bar — including "load-and-play" when triggered from a
+  stopped state. Same role they had in classic Winamp 2.x.
+
 ### Fixed
 
 - **CUE sheets with CRLF line endings now parse correctly.** EAC and
