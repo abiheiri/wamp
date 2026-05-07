@@ -23,6 +23,15 @@ class PlaylistView: NSView {
     private var lastColumnWidth: CGFloat = 0
     private var dragOrigin: NSPoint?
 
+    // Set by MainWindow.bindToModels / AppDelegate. Baked into pledit.bmp's
+    // BR corner; mirrors classic Winamp's playlist-local transport row.
+    var onMiniPrev:  (() -> Void)?
+    var onMiniPlay:  (() -> Void)?
+    var onMiniPause: (() -> Void)?
+    var onMiniStop:  (() -> Void)?
+    var onMiniNext:  (() -> Void)?
+    var onMiniEject: (() -> Void)?
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
@@ -229,14 +238,12 @@ class PlaylistView: NSView {
             br.draw(in: NSRect(x: w - 150, y: 0, width: 150, height: 38))
         }
 
-        // The mini-player buttons baked into the BR corner sprite are left
-        // visible as decorative pixels. Classic Winamp wired them to
-        // playlist-local transport; Wamp routes transport through the main
-        // window only, so they're non-interactive for now. A previous
-        // iteration painted a 97×13 rectangle over them, but any solid fill
-        // (black or pledit normalBG) clipped surrounding skin artwork on
-        // many skins. Showing the sprite as the artist drew it is the
-        // cleanest base — wiring the buttons up later is purely additive.
+        // The six mini-player buttons baked into the BR corner sprite
+        // (PREV / PLAY / PAUSE / STOP / NEXT / EJECT) are shown as the
+        // skin artist drew them — pledit.bmp doesn't ship pressed variants
+        // for this row, so we don't redraw on click. Hit-testing and
+        // routing through onMiniPrev / onMiniPlay / onMiniPause /
+        // onMiniStop / onMiniNext / onMiniEject lives in mouseDown below.
 
         // Render the compact "N / H:MM" summary via text.bmp inside the baked
         // "running time" LCD area of the bottom-right corner sprite. The full
@@ -668,12 +675,22 @@ class PlaylistView: NSView {
     private static let skinnedMiscRect = NSRect(x: 98, y: 10, width: 22, height: 18)
 
     // LIST OPTS lives in the bottom-right corner (150×38 at x=w-150).
-    // Bounds measured directly from pledit.bmp BR-corner pixels: the visible
-    // raised box spans top-down (105, 8, 23, 18) → playlist-local x = w-45,
-    // AppKit y = 38 - 8 - 18 = 12.
+    // Webamp #playlist-list-menu: bottom:12, right:22, w:22, h:18.
     private func skinnedListOptsRect() -> NSRect {
-        NSRect(x: bounds.width - 45, y: 12, width: 23, height: 18)
+        NSRect(x: bounds.width - 44, y: 12, width: 22, height: 18)
     }
+
+    // Six baked mini-transport buttons in pledit.bmp's BR corner. Webamp
+    // .playlist-action-buttons: top:22, left:3, children 10×10, packed in
+    // a flex row. AppKit y = 38 - 22 - 10 = 6. Corner draws at
+    // (bounds.width - 150, 0), so corner-local x maps to
+    // bounds.width - 150 + corner_x.
+    private func skinnedMiniPrevRect()  -> NSRect { NSRect(x: bounds.width - 147, y: 6, width: 10, height: 10) }
+    private func skinnedMiniPlayRect()  -> NSRect { NSRect(x: bounds.width - 137, y: 6, width: 10, height: 10) }
+    private func skinnedMiniPauseRect() -> NSRect { NSRect(x: bounds.width - 127, y: 6, width: 10, height: 10) }
+    private func skinnedMiniStopRect()  -> NSRect { NSRect(x: bounds.width - 117, y: 6, width: 10, height: 10) }
+    private func skinnedMiniNextRect()  -> NSRect { NSRect(x: bounds.width - 107, y: 6, width: 10, height: 10) }
+    private func skinnedMiniEjectRect() -> NSRect { NSRect(x: bounds.width -  97, y: 6, width: 10, height: 10) }
 
     // MARK: - Mouse handling (skinned mode: dragging + bottom buttons)
     override func mouseDown(with event: NSEvent) {
@@ -687,13 +704,19 @@ class PlaylistView: NSView {
         }
 
         // Bottom button strip — baked pledit.bmp sprites for ADD/REM/SEL/MISC
-        // on the left, LIST OPTS on the right.
+        // on the left, LIST OPTS + mini-transport on the right.
         if point.y < 38 {
             if Self.skinnedAddRect.contains(point)  { showAddMenu(); return }
             if Self.skinnedRemRect.contains(point)  { showRemMenu(); return }
             if Self.skinnedSelRect.contains(point)  { showSelMenu(); return }
             if Self.skinnedMiscRect.contains(point) { showMiscMenu(); return }
             if skinnedListOptsRect().contains(point) { showListOptsMenu(); return }
+            if skinnedMiniPrevRect().contains(point)  { onMiniPrev?();  return }
+            if skinnedMiniPlayRect().contains(point)  { onMiniPlay?();  return }
+            if skinnedMiniPauseRect().contains(point) { onMiniPause?(); return }
+            if skinnedMiniStopRect().contains(point)  { onMiniStop?();  return }
+            if skinnedMiniNextRect().contains(point)  { onMiniNext?();  return }
+            if skinnedMiniEjectRect().contains(point) { onMiniEject?(); return }
         }
 
         super.mouseDown(with: event)

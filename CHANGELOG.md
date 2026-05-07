@@ -6,7 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Mini-transport buttons in the skinned playlist are now interactive.**
+  The five baked buttons (prev / play / pause / stop / next) in
+  pledit.bmp's bottom-right corner now respond to clicks and route
+  through the same `AudioEngine` + `PlaylistManager` calls as the main
+  transport bar — including "load-and-play" when triggered from a
+  stopped state. Same role they had in classic Winamp 2.x.
+
+- **EJECT button in the playlist BR corner now opens "Play file…"** —
+  the sixth baked button (the "▲" sprite) routes to the same
+  `NSOpenPanel` as `File ▸ Open File…` / Cmd+O.
+
 ### Fixed
+
+- **Recalibrate playlist mini-transport hit-rects to Webamp's 10×10
+  spec.** The first wire-up used 22×18 rects which overlapped each
+  other (clicking visible PLAY fired PREV, etc.) and missed the
+  leftmost ~2 px of PREV outright. Rects now match
+  `.playlist-action-buttons` from `webamp/css/playlist-window.css`
+  verbatim — clicks land on the button under the cursor, including
+  the previously-dead edges.
+
+
 
 - **CUE sheets with CRLF line endings now parse correctly.** EAC and
   other Windows tools write CUEs with `\r\n` terminators. Swift treats

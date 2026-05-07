@@ -145,6 +145,22 @@ class MainWindow: NSWindow {
         equalizerView.bindToModel(audioEngine: audioEngine, playlistManager: playlistManager)
         playlistView.bindToModel(playlistManager: playlistManager)
 
+        // Mini-transport baked into pledit.bmp's BR corner mirrors the
+        // main TransportBar — same play/pause/stop/prev/next semantics
+        // as MainPlayerView, including "loadAndPlay if stopped".
+        playlistView.onMiniPrev  = { [weak playlistManager] in playlistManager?.playPrevious() }
+        playlistView.onMiniPlay  = { [weak audioEngine, weak playlistManager] in
+            guard let engine = audioEngine else { return }
+            if engine.playState == .stopped, let track = playlistManager?.currentTrack {
+                engine.loadAndPlay(url: track.url)
+            } else {
+                engine.play()
+            }
+        }
+        playlistView.onMiniPause = { [weak audioEngine] in audioEngine?.pause() }
+        playlistView.onMiniStop  = { [weak audioEngine] in audioEngine?.stop() }
+        playlistView.onMiniNext  = { [weak playlistManager] in playlistManager?.playNext() }
+
         mainPlayerView.onToggleEQ = { [weak self] in
             self?.showEqualizer.toggle()
         }
