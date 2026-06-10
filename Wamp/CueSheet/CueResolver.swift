@@ -14,9 +14,20 @@ enum CueResolver {
     static func resolveTracks(cue: CueSheet, cueDirectory: URL) async throws -> [Track] {
         var resolved: [Track] = []
         for fileEntry in cue.files {
-            let audioURL = cueDirectory.appendingPathComponent(fileEntry.path)
-            guard FileManager.default.fileExists(atPath: audioURL.path) else {
-                throw CueResolverError.audioFileMissing(audioURL)
+            var audioURL = cueDirectory.appendingPathComponent(fileEntry.path)
+            if !FileManager.default.fileExists(atPath: audioURL.path) {
+                // Cues ripped elsewhere often carry absolute (or Windows-style)
+                // FILE paths while the audio sits right next to the .cue —
+                // retry with just the basename, like Winamp/foobar do.
+                let basename = fileEntry.path
+                    .split(whereSeparator: { $0 == "/" || $0 == "\\" })
+                    .last.map(String.init)
+                if let basename, !basename.isEmpty {
+                    audioURL = cueDirectory.appendingPathComponent(basename)
+                }
+                guard FileManager.default.fileExists(atPath: audioURL.path) else {
+                    throw CueResolverError.audioFileMissing(audioURL)
+                }
             }
 
             let totalDuration: TimeInterval

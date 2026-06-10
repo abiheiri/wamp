@@ -103,6 +103,34 @@ struct CueResolverTests {
         #expect(tracks.last?.cueEnd == nil)
     }
 
+    @Test func windowsAbsoluteFilePathFallsBackToBasenameNextToCue() async throws {
+        // Cue sheets ripped on another machine often carry absolute Windows
+        // paths; the audio actually sits next to the cue. Resolve by basename.
+        let (wavURL, _) = try makeSilentWavAndCue()
+        let dir = wavURL.deletingLastPathComponent()
+        let sheet = CueSheet(
+            title: nil, performer: nil, genre: nil, date: nil,
+            files: [CueFile(path: #"D:\Music\Album\mix.wav"#, format: "WAVE",
+                            tracks: [CueTrack(number: 1, title: nil, performer: nil, startFrames: 0)])]
+        )
+        let tracks = try await CueResolver.resolveTracks(cue: sheet, cueDirectory: dir)
+        #expect(tracks.count == 1)
+        #expect(tracks[0].url.path == wavURL.path)
+    }
+
+    @Test func unixAbsoluteFilePathFallsBackToBasenameNextToCue() async throws {
+        let (wavURL, _) = try makeSilentWavAndCue()
+        let dir = wavURL.deletingLastPathComponent()
+        let sheet = CueSheet(
+            title: nil, performer: nil, genre: nil, date: nil,
+            files: [CueFile(path: "/home/somebody/rips/mix.wav", format: "WAVE",
+                            tracks: [CueTrack(number: 1, title: nil, performer: nil, startFrames: 0)])]
+        )
+        let tracks = try await CueResolver.resolveTracks(cue: sheet, cueDirectory: dir)
+        #expect(tracks.count == 1)
+        #expect(tracks[0].url.path == wavURL.path)
+    }
+
     @Test func missingAudioFileThrows() async throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(UUID().uuidString)
