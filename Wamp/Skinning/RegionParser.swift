@@ -35,7 +35,9 @@ enum RegionParser {
         var polygons: [[CGPoint]] = []
         var cursor = 0
         for count in counts {
-            guard count >= 3, cursor + count <= coords.count else { break }
+            // `count` comes from untrusted skin data — compare via subtraction,
+            // `cursor + count` could overflow Int and trap on a hostile NumPoints.
+            guard count >= 3, count <= coords.count - cursor else { break }
             polygons.append(Array(coords[cursor..<(cursor + count)]))
             cursor += count
         }

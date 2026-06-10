@@ -18,10 +18,31 @@ enum SkinParserUtils {
             throw SkinParserError.invalidArchive
         }
 
+        // Real skins unpack to well under a few MB; the caps stop zip bombs
+        // from exhausting memory mid-load.
+        let perEntryCap = 32 * 1024 * 1024
+        let totalCap = 96 * 1024 * 1024
+        struct EntryTooLarge: Error {}
+
         var entries: [String: Data] = [:]
+        var totalBytes = 0
         for entry in archive where entry.type == .file {
+            guard entry.uncompressedSize <= UInt64(perEntryCap) else { continue }
             var bytes = Data()
-            _ = try archive.extract(entry) { chunk in bytes.append(chunk) }
+            do {
+                _ = try archive.extract(entry) { chunk in
+                    bytes.append(chunk)
+                    if bytes.count > perEntryCap { throw EntryTooLarge() }
+                }
+            } catch {
+                // A single damaged or oversized entry (bad CRC, exotic method)
+                // must not abort the whole skin — decades-old archives are
+                // frequently slightly broken. Required-file validation later
+                // catches the case where the entry actually mattered.
+                continue
+            }
+            totalBytes += bytes.count
+            guard totalBytes <= totalCap else { break }
             let basename = entry.path
                 .replacingOccurrences(of: "\\", with: "/")
                 .split(separator: "/")
