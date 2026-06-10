@@ -237,8 +237,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                              symbol: "checkmark.rectangle.stack")
 
         // Controls
-        let playPause = item("Play/Pause", #selector(togglePlayPause), " ", symbol: "playpause.fill")
-        playPause.keyEquivalentModifierMask = []
+        // No bare-Space key equivalent here: a modifier-less menu key equivalent
+        // is matched before keyDown reaches the field editor, stealing Space
+        // from every text field (playlist search, Jump-to-File). Space playback
+        // toggling lives in MainWindow.keyDown, which only fires when no text
+        // field consumed the key.
+        let playPause = item("Play/Pause", #selector(togglePlayPause), "", symbol: "playpause.fill")
         let stop = item("Stop", #selector(stopAction), ".", symbol: "stop.fill")
         let next = item("Next",
                         #selector(nextAction),
@@ -373,6 +377,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func importFromMusicLibraryAction() {
         guard let mainWindow = mainWindow else { return }
+        // The menu stays enabled while the sheet is up; a second invocation
+        // would drop the only strong reference to the presented controller,
+        // leaving a dead sheet that can never be dismissed.
+        guard importMusicController == nil else { return }
         let controller = ImportMusicLibraryWindowController()
         importMusicController = controller
         controller.onCancel = { [weak self, weak mainWindow] in
@@ -572,6 +580,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return event
         }
+    }
+}
+
+// MARK: - Menu validation
+extension AppDelegate: NSMenuItemValidation {
+    /// Keeps the View-menu checkmarks in sync however the panels were toggled
+    /// (menu, player buttons, corner popup) — the items are static, so their
+    /// `state` must be refreshed each time the menu opens.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(toggleEQ):
+            menuItem.state = (mainWindow?.showEqualizer ?? false) ? .on : .off
+        case #selector(togglePL):
+            menuItem.state = (mainWindow?.showPlaylist ?? false) ? .on : .off
+        case #selector(toggleAlwaysOnTop):
+            menuItem.state = (mainWindow?.alwaysOnTop ?? false) ? .on : .off
+        case #selector(toggleDoubleSize):
+            menuItem.state = (WinampTheme.scale > WinampTheme.baseScale + 0.01) ? .on : .off
+        case #selector(importFromMusicLibraryAction):
+            return importMusicController == nil
+        default:
+            break
+        }
+        return true
     }
 }
 
