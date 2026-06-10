@@ -371,6 +371,9 @@ class PlaylistView: NSView {
             .sink { [weak self] _ in
                 self?.tableView.reloadData()
                 self?.updateInfoLabel()
+                // The skinned footer ("N / H:MM" LCD) is drawn in draw(_:),
+                // not by infoLabel — invalidate or it shows stale totals.
+                self?.needsDisplay = true
             }
             .store(in: &cancellables)
 
@@ -581,8 +584,11 @@ class PlaylistView: NSView {
     /// Build a right-click context menu for a playlist row. Returns nil if no
     /// row-specific actions apply (letting the table fall back to its default menu).
     private func contextMenu(for row: Int) -> NSMenu? {
-        guard let pm = playlistManager, row >= 0, row < pm.tracks.count else { return nil }
-        let track = pm.tracks[row]
+        // Table rows show displayedTracks (search-filtered) — indexing the
+        // unfiltered model here would target the wrong track while filtering.
+        let tracks = displayedTracks
+        guard row >= 0, row < tracks.count else { return nil }
+        let track = tracks[row]
         guard track.isCueVirtual else { return nil }
 
         let menu = NSMenu()

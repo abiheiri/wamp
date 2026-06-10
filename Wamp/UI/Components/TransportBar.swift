@@ -31,12 +31,14 @@ class TransportBar: NSView {
         nextButton = buttons[4]
         ejectButton = buttons[5]
 
-        prevButton.drawIcon = { rect, _ in self.drawPrevIcon(in: rect) }
-        playButton.drawIcon = { rect, active in self.drawPlayIcon(in: rect, active: active) }
-        pauseButton.drawIcon = { rect, _ in self.drawPauseIcon(in: rect) }
-        stopButton.drawIcon = { rect, _ in self.drawStopIcon(in: rect) }
-        nextButton.drawIcon = { rect, _ in self.drawNextIcon(in: rect) }
-        ejectButton.drawIcon = { rect, _ in self.drawEjectIcon(in: rect) }
+        // [weak self]: the bar retains the buttons; a strong capture here is
+        // a retain cycle that keeps the whole bar alive forever.
+        prevButton.drawIcon = { [weak self] rect, _ in self?.drawPrevIcon(in: rect) }
+        playButton.drawIcon = { [weak self] rect, active in self?.drawPlayIcon(in: rect, active: active) }
+        pauseButton.drawIcon = { [weak self] rect, _ in self?.drawPauseIcon(in: rect) }
+        stopButton.drawIcon = { [weak self] rect, _ in self?.drawStopIcon(in: rect) }
+        nextButton.drawIcon = { [weak self] rect, _ in self?.drawNextIcon(in: rect) }
+        ejectButton.drawIcon = { [weak self] rect, _ in self?.drawEjectIcon(in: rect) }
 
         prevButton.onClick = { [weak self] in self?.onPrevious?() }
         playButton.onClick = { [weak self] in self?.onPlay?() }
