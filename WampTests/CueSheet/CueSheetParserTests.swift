@@ -144,6 +144,67 @@ struct CueSheetParserTests {
         }
     }
 
+    @Test func hugeTimecodeMinutesIsMalformedNotACrash() throws {
+        // Int("922337203685477581") parses, but m*60*75 overflows Int64 —
+        // must surface as .malformed, not an arithmetic trap.
+        let cue = """
+        FILE "a.wav" WAVE
+          TRACK 01 AUDIO
+            INDEX 01 922337203685477581:00:00
+        """
+        do {
+            _ = try CueSheetParser.parse(cue.data(using: .utf8)!)
+            Issue.record("expected throw")
+        } catch let err as CueParseError {
+            guard case .malformed(_, let reason) = err else {
+                Issue.record("expected .malformed, got \(err)")
+                return
+            }
+            #expect(reason.contains("timecode"))
+        }
+    }
+
+    @Test func crlfCueReportsCorrectErrorLineNumber() throws {
+        // CRLF must not double-count line numbers in diagnostics.
+        let crlf = [
+            "FILE \"a.wav\" WAVE",
+            "  TRACK 01 AUDIO",
+            "    TITLE \"x\"",
+        ].joined(separator: "\r\n")
+        do {
+            _ = try CueSheetParser.parse(crlf.data(using: .utf8)!)
+            Issue.record("expected throw")
+        } catch let err as CueParseError {
+            guard case .malformed(let line, _) = err else {
+                Issue.record("expected .malformed, got \(err)")
+                return
+            }
+            #expect(line == 2) // the TRACK line
+        }
+    }
+
+    @Test func missingIndexErrorPointsAtTrackLineNotNextFile() throws {
+        let cue = """
+        FILE "a.wav" WAVE
+          TRACK 01 AUDIO
+            TITLE "x"
+        FILE "b.wav" WAVE
+          TRACK 02 AUDIO
+            INDEX 01 00:00:00
+        """
+        do {
+            _ = try CueSheetParser.parse(cue.data(using: .utf8)!)
+            Issue.record("expected throw")
+        } catch let err as CueParseError {
+            guard case .malformed(let line, let reason) = err else {
+                Issue.record("expected .malformed, got \(err)")
+                return
+            }
+            #expect(reason.contains("TRACK 1"))
+            #expect(line == 2) // the offending TRACK's line, not FILE "b.wav"'s
+        }
+    }
+
     @Test func unquotedFilePath() throws {
         let cue = """
         FILE mix.flac WAVE
