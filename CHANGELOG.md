@@ -21,6 +21,77 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Loaded skin no longer forgotten after changing volume and quitting.**
+  Debounced state saves rebuilt `state.json` from defaults, wiping
+  `skinPath` (and window position fields) on every volume/EQ change.
+  Saves now start from the persisted state.
+
+- **UTF-8 `.m3u` playlists with non-ASCII paths now load.** Decoding
+  tried Latin-1 first for `.m3u` — which succeeds for any bytes — so
+  UTF-8 content turned into mojibake and tracks went missing. Strict
+  UTF-8 is now tried first, then CP-1252, then Latin-1. Unencoded
+  `file://` URLs (with spaces) resolve, and `http(s)://` stream entries
+  are skipped instead of becoming bogus local paths.
+
+- **Malformed CUE/skin files can no longer crash the app.** Huge minute
+  values in `INDEX` timecodes and hostile `NumPoints` in a skin's
+  `region.txt` hit integer-overflow traps; both now fail soft. CUE
+  parse errors also report correct line numbers in CRLF files and point
+  at the offending TRACK line.
+
+- **Damaged or oversized skin archives load instead of failing.** One
+  corrupt entry (bad CRC) aborted the whole `.wsz`; now it's skipped.
+  Decompression is capped (32 MB/entry, 96 MB total) against zip bombs,
+  and partially out-of-bounds sprites fall back to built-in drawing
+  instead of stretching garbage.
+
+- **Space works in the playlist search and Jump-to-File fields.** The
+  Play/Pause menu item claimed bare Space as its key equivalent, which
+  AppKit matches before text fields see the key — toggling playback
+  mid-typing. Space still toggles playback when no text field is active.
+
+- **Gapless CUE playback bookkeeping.** Seeking within a cue track left
+  a stale queued segment record, derailing auto-advance (tracks were
+  skipped while the wrong title showed); the elapsed-time display
+  overcounted by a full track after every gapless transition; pausing,
+  seeking, then resuming played past the cue track's end to EOF; and
+  repeat-one on a cue track replayed the entire album file from 0:00.
+
+- **EQ preamp survives volume and mute changes.** Volume/mute writes to
+  the mixer dropped the preamp factor until the preamp slider was
+  touched again.
+
+- **Playlist edits while playing stay coherent.** Removing the playing
+  track now hands playback to the track that slid into its slot (or
+  stops at the end of the list) instead of leaving audio playing a
+  removed file with the wrong row highlighted and a track skipped on
+  advance. Clearing the playlist stops playback. Shuffle follows the
+  exact playing entry (not the first duplicate of the same file), and a
+  FLAC+cue inside a mixed batch no longer jumps ahead of files listed
+  before it.
+
+- **CUE sheets with absolute Windows/Unix `FILE` paths resolve** by
+  falling back to the basename next to the `.cue`, matching
+  Winamp/foobar2000 behavior.
+
+- **Right-click in a filtered playlist targets the clicked row.** The
+  context menu indexed the unfiltered model, so with an active search
+  it acted on a different track. Jump-to-File likewise re-resolves its
+  selection against the live playlist, so reordering/deleting tracks
+  while the panel is open can't play the wrong entry.
+
+- **Opening "Import from Music Library…" twice no longer wedges the
+  sheet permanently;** the View-menu checkmarks for Show Equalizer /
+  Show Playlist now track the actual panel state; the skinned playlist
+  footer count/duration refreshes when tracks change.
+
+- **Small fixes:** unskinned time display clamps at 99 minutes instead
+  of dropping the leading digit past 100; double-click reset-to-center
+  applies only to balance/EQ sliders (not seek/volume); the spectrum
+  analyzer works after session restore and guards against tiny FFT
+  buffers; `viscolor.txt` files with leading comments no longer shift
+  the palette.
+
 - **Recalibrate playlist mini-transport hit-rects to Webamp's 10×10
   spec.** The first wire-up used 22×18 rects which overlapped each
   other (clicking visible PLAY fired PREV, etc.) and missed the
