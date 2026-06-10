@@ -19,6 +19,13 @@ extension Notification.Name {
     static let trackDidFinish = Notification.Name("trackDidFinish")
 }
 
+extension AudioEngine {
+    /// userInfo key on `.trackDidFinish`: true when the engine has already
+    /// promoted a queued gapless segment and audio is continuing seamlessly —
+    /// the playlist should only advance its index, not start playback anew.
+    static let gaplessChainedKey = "gaplessChained"
+}
+
 class AudioEngine: ObservableObject {
     // MARK: - Published State
     @Published var isPlaying = false
@@ -63,13 +70,18 @@ class AudioEngine: ObservableObject {
     /// `audioLengthFrames` for a whole-file play, or the CUE track's end frame
     /// when we're playing a bounded segment.
     private var currentSegmentEndFrame: AVAudioFramePosition = 0
+    /// Logical start frame of the current track's segment (0 for whole-file
+    /// playback, the CUE start frame for virtual tracks). Unlike `seekFrame`
+    /// it is not moved by seeks — repeat-one loops back to it.
+    private var currentSegmentStartFrame: AVAudioFramePosition = 0
     /// Set by `chainNextSegment` when a follow-up segment has already been
     /// queued on the player node. Consumed by `handleTrackCompletion` so the
     /// engine keeps playing into the chained segment without re-loading.
     private var pendingChain: (startFrame: AVAudioFramePosition, endFrame: AVAudioFramePosition)?
 
     private var effectiveVolume: Float {
-        isMuted ? 0 : volume
+        // Preamp is folded in so volume/mute changes don't silently wipe it.
+        (isMuted ? 0 : volume) * pow(10, preampGain / 20)
     }
 
     // MARK: - Init
@@ -190,6 +202,7 @@ class AudioEngine: ObservableObject {
                 endFrame = audioLengthFrames
             }
             seekFrame = max(0, min(startFrame, audioLengthFrames))
+            currentSegmentStartFrame = seekFrame
             scheduleSegment(endFrame: endFrame)
         } catch {
             print("🔴 AudioEngine: failed to load \(url.lastPathComponent): \(error)")
@@ -209,6 +222,8 @@ class AudioEngine: ObservableObject {
         duration = Double(audioLengthFrames) / audioSampleRate
         seekFrame = 0
         needsScheduling = true
+        currentSegmentStartFrame = 0
+        currentSegmentEndFrame = 0
         print("🔵 loadFile: file loaded, sampleRate=\(audioSampleRate), frames=\(audioLengthFrames), duration=\(duration)s")
     }
 
@@ -218,8 +233,11 @@ class AudioEngine: ObservableObject {
             if !engine.isRunning {
                 try engine.start()
             }
+            installSpectrumTap()
             if needsScheduling {
-                scheduleAndPlay()
+                // Respect the active CUE segment bound (set by a paused seek);
+                // scheduling to EOF here would bleed past the cue track's end.
+                scheduleSegment(endFrame: currentSegmentEndFrame > 0 ? currentSegmentEndFrame : audioLengthFrames)
             } else {
                 playerNode.play()
             }
@@ -247,6 +265,8 @@ class AudioEngine: ObservableObject {
         seekFrame = 0
         needsScheduling = true
         pendingChain = nil
+        currentSegmentStartFrame = 0
+        currentSegmentEndFrame = 0
         stopTimeUpdates()
     }
 
@@ -260,10 +280,11 @@ class AudioEngine: ObservableObject {
         let upperBound = currentSegmentEndFrame > 0 ? currentSegmentEndFrame : audioLengthFrames
         seekFrame = max(0, min(targetFrame, upperBound))
         needsScheduling = true
+        // Rescheduling wipes the player node's queue, so any chained gapless
+        // segment is gone — forget it, or completion bookkeeping derails.
+        pendingChain = nil
 
         if isPlaying {
-            playbackGeneration &+= 1
-            playerNode.stop()
             scheduleSegment(endFrame: upperBound)
         } else {
             currentTime = time
@@ -280,9 +301,7 @@ class AudioEngine: ObservableObject {
 
     func setPreamp(gain: Float) {
         preampGain = max(-12, min(12, gain))
-        // Preamp as volume multiplier: convert dB to linear
-        let linear = pow(10, preampGain / 20)
-        engine.mainMixerNode.outputVolume = effectiveVolume * linear
+        engine.mainMixerNode.outputVolume = effectiveVolume
     }
 
     func setAllEQBands(_ gains: [Float]) {
@@ -314,6 +333,10 @@ class AudioEngine: ObservableObject {
             return
         }
 
+        // Invalidate completion handlers of whatever was scheduled before:
+        // playerNode.stop() fires them asynchronously, and without the bump
+        // they'd be mistaken for a genuine end-of-segment.
+        playbackGeneration &+= 1
         playerNode.stop()
         let generation = playbackGeneration
         let capturedEnd = endFrame
@@ -344,9 +367,12 @@ class AudioEngine: ObservableObject {
         }
 
         if repeatMode == .track {
-            seekFrame = 0
+            // Loop the current track's segment, not the whole file — for a CUE
+            // virtual track that segment is a slice of the album file.
+            pendingChain = nil
+            seekFrame = currentSegmentStartFrame
             needsScheduling = true
-            scheduleAndPlay()
+            scheduleSegment(endFrame: currentSegmentEndFrame > 0 ? currentSegmentEndFrame : audioLengthFrames)
             return
         }
 
@@ -354,11 +380,17 @@ class AudioEngine: ObservableObject {
         // and may already be feeding audio. Adopt its bookkeeping and notify
         // the playlist, but do NOT stop or reset the engine.
         if let pending = pendingChain {
-            seekFrame = pending.startFrame
+            // playerTime.sampleTime keeps counting across the chain boundary
+            // (no node stop), so rebase seekFrame by the just-finished
+            // segment's length — otherwise currentTime overcounts by it.
+            let finishedLength = max(0, currentSegmentEndFrame - seekFrame)
+            seekFrame = pending.startFrame - finishedLength
+            currentSegmentStartFrame = pending.startFrame
             currentSegmentEndFrame = pending.endFrame
             pendingChain = nil
             print("🟢 handleTrackCompletion: promoted chained segment [\(pending.startFrame), \(pending.endFrame)]")
-            NotificationCenter.default.post(name: .trackDidFinish, object: nil)
+            NotificationCenter.default.post(name: .trackDidFinish, object: nil,
+                                            userInfo: [AudioEngine.gaplessChainedKey: true])
             return
         }
 
@@ -410,6 +442,9 @@ class AudioEngine: ObservableObject {
         let log2n = vDSP_Length(log2(Float(frameCount)))
         let fftSize = Int(1 << log2n)
         let halfSize = fftSize / 2
+        // The tap doesn't guarantee buffer sizes; with halfSize below the
+        // 32-bin output the mapping loop would form an empty range and trap.
+        guard halfSize >= 32 else { return }
 
         guard let fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return }
         defer { vDSP_destroy_fftsetup(fftSetup) }

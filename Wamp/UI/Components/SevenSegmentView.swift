@@ -44,12 +44,15 @@ class SevenSegmentView: NSView {
         let colonWidth: CGFloat = 6
         let digitHeight = bounds.height
 
-        // Layout: M : S S (or MM : SS if >= 10 min)
+        // Layout: M : S S (or MM : SS if >= 10 min). Clamp at 99 like the
+        // skinned path — `minutes / 10` past 100 isn't a drawable digit and
+        // the leading digit would silently vanish.
+        let mm = min(99, minutes)
         var digits: [Int] = []
-        if minutes >= 10 {
-            digits.append(minutes / 10)
+        if mm >= 10 {
+            digits.append(mm / 10)
         }
-        digits.append(minutes % 10)
+        digits.append(mm % 10)
 
         let totalWidth = CGFloat(digits.count + 2) * digitWidth + colonWidth
         var x = (bounds.width - totalWidth) / 2

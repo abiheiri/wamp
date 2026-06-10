@@ -168,6 +168,40 @@ struct M3UParserTests {
         #expect(entries[0].url.path == "/a/é.mp3")
     }
 
+    @Test func m3uUTF8ContentDecodedAsUTF8DespiteExtension() throws {
+        // Modern tools write UTF-8 into plain .m3u; é is C3 A9 in UTF-8.
+        let data = "/a/é.mp3\n".data(using: .utf8)!
+        let entries = try M3UParser.parse(data: data, baseURL: base, fileExtension: "m3u")
+        #expect(entries.count == 1)
+        #expect(entries[0].url.path == "/a/é.mp3")
+    }
+
+    @Test func m3uCP1252SmartQuoteDecoded() throws {
+        // 0x92 is ’ in CP-1252 (and an invisible C1 control in Latin-1).
+        let data = Data([0x2F, 0x64, 0x6F, 0x6E, 0x92, 0x74, 0x2E, 0x6D, 0x70, 0x33, 0x0A]) // "/don’t.mp3\n"
+        let entries = try M3UParser.parse(data: data, baseURL: base, fileExtension: "m3u")
+        #expect(entries.count == 1)
+        #expect(entries[0].url.path == "/don\u{2019}t.mp3")
+    }
+
+    @Test func fileURLWithUnencodedSpacesResolved() throws {
+        let text = "file:///Users/me/My Music/a.mp3\n"
+        let entries = try M3UParser.parse(data: text.data(using: .utf8)!, baseURL: base)
+        #expect(entries.count == 1)
+        #expect(entries[0].url.path == "/Users/me/My Music/a.mp3")
+    }
+
+    @Test func nonFileSchemesAreSkipped() throws {
+        let text = """
+        http://example.com/stream.mp3
+        https://example.com/radio
+        /a.mp3
+        """
+        let entries = try M3UParser.parse(data: text.data(using: .utf8)!, baseURL: base)
+        #expect(entries.count == 1)
+        #expect(entries[0].url.path == "/a.mp3")
+    }
+
     @Test func m3u8UTF8EncodingByExtension() throws {
         let text = "/a/日本.mp3\n"
         let entries = try M3UParser.parse(data: text.data(using: .utf8)!, baseURL: base, fileExtension: "m3u8")

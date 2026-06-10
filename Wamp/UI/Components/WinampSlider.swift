@@ -244,7 +244,10 @@ class WinampSlider: NSView {
 
     // MARK: - Mouse Handling
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 {
+        // Reset-to-center only makes sense where the midpoint is neutral
+        // (balance 0, EQ band 0 dB). On seek/volume a double-click would yank
+        // playback to 50% / volume to half instead of honoring the click.
+        if event.clickCount == 2, style == .balance || style == .eqBand {
             resetToCenter()
             return
         }

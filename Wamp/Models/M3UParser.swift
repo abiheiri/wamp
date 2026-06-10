@@ -34,16 +34,18 @@ enum M3UParser {
         if body.starts(with: [0xEF, 0xBB, 0xBF]) {
             body = body.dropFirst(3)
         }
-        let preferred: String.Encoding = (fileExtension == "m3u") ? .isoLatin1 : .utf8
-        if let s = String(data: body, encoding: preferred) {
-            return s
-        }
-        // Fallback: try the other common encoding.
-        let fallback: String.Encoding = (preferred == .utf8) ? .isoLatin1 : .utf8
-        if let s = String(data: body, encoding: fallback) {
+        // Strict UTF-8 first regardless of extension: it rejects ill-formed
+        // sequences, so legacy 8-bit files fall through, while modern tools'
+        // UTF-8 .m3u files decode correctly. CP-1252 next (superset of
+        // Latin-1's printable range, maps 0x80–0x9F to real glyphs), then
+        // Latin-1 as the never-failing last resort.
+        if let s = String(data: body, encoding: .utf8) {
             return s
         }
         if let s = String(data: body, encoding: .windowsCP1252) {
+            return s
+        }
+        if let s = String(data: body, encoding: .isoLatin1) {
             return s
         }
         throw M3UParseError.encoding
@@ -69,12 +71,13 @@ enum M3UParser {
             }
 
             // Non-# line → path.
-            let resolved = resolveURL(line, baseURL: baseURL)
-            entries.append(M3UEntry(
-                url: resolved,
-                duration: pendingDuration,
-                title: pendingTitle
-            ))
+            if let resolved = resolveURL(line, baseURL: baseURL) {
+                entries.append(M3UEntry(
+                    url: resolved,
+                    duration: pendingDuration,
+                    title: pendingTitle
+                ))
+            }
             pendingDuration = nil
             pendingTitle = nil
         }
@@ -102,9 +105,21 @@ enum M3UParser {
         return (duration, title)
     }
 
-    private static func resolveURL(_ path: String, baseURL: URL) -> URL {
-        if path.hasPrefix("file://"), let u = URL(string: path) {
-            return u
+    /// Returns nil for entries that aren't local files (http/https streams etc.).
+    private static func resolveURL(_ path: String, baseURL: URL) -> URL? {
+        if path.hasPrefix("file://") {
+            if let u = URL(string: path), u.isFileURL {
+                return u
+            }
+            // Legacy tools write unencoded file:// URLs (spaces etc.) —
+            // strip the scheme and treat the remainder as a plain path.
+            let raw = String(path.dropFirst("file://".count))
+            let decoded = raw.removingPercentEncoding ?? raw
+            return URL(fileURLWithPath: decoded)
+        }
+        // Any other scheme:// line (http, https, ...) is a stream — not supported.
+        if path.range(of: "^[A-Za-z][A-Za-z0-9+.-]*://", options: .regularExpression) != nil {
+            return nil
         }
         if path.hasPrefix("/") {
             return URL(fileURLWithPath: path)

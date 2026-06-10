@@ -53,7 +53,10 @@ class PlaylistManager: ObservableObject {
     init() {
         NotificationCenter.default.publisher(for: .trackDidFinish)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.advanceToNext() }
+            .sink { [weak self] note in
+                let chained = (note.userInfo?[AudioEngine.gaplessChainedKey] as? Bool) ?? false
+                self?.advanceToNext(engineChained: chained)
+            }
             .store(in: &cancellables)
     }
 
@@ -74,10 +77,16 @@ class PlaylistManager: ObservableObject {
 
             if ext == "flac" {
                 // External sibling .cue wins — it's the more explicit user action.
+                // Resolve into the local batch (not straight into `tracks`) so a
+                // mixed batch keeps its input order.
                 let siblingCue = url.deletingPathExtension().appendingPathExtension("cue")
                 if FileManager.default.fileExists(atPath: siblingCue.path) {
                     do {
-                        try await self.addCueSheet(url: siblingCue)
+                        let sheet = try CueSheetParser.parse(url: siblingCue)
+                        let resolved = try await CueResolver.resolveTracks(
+                            cue: sheet, cueDirectory: siblingCue.deletingLastPathComponent()
+                        )
+                        newTracks.append(contentsOf: resolved)
                         continue
                     } catch {
                         print("🟡 addURLs: sibling .cue failed (\(error)), falling through")
@@ -207,11 +216,27 @@ class PlaylistManager: ObservableObject {
 
     func removeTrack(at index: Int) {
         guard index >= 0, index < tracks.count else { return }
+        let removingCurrent = index == currentIndex
+        let wasPlaying = removingCurrent && (audioEngine?.isPlaying ?? false)
         tracks.remove(at: index)
         if index < currentIndex {
             currentIndex -= 1
-        } else if index == currentIndex {
-            currentIndex = min(currentIndex, tracks.count - 1)
+        } else if removingCurrent {
+            if wasPlaying {
+                // Don't leave the engine playing a track that's gone from the
+                // list (highlight, Now Playing and auto-advance all desync) —
+                // move on to the track that slid into the slot, or stop.
+                if index < tracks.count {
+                    playTrack(at: index)
+                } else if !tracks.isEmpty, audioEngine?.repeatMode == .playlist {
+                    playTrack(at: 0)
+                } else {
+                    audioEngine?.stop()
+                    currentIndex = min(index, tracks.count - 1)
+                }
+            } else {
+                currentIndex = min(currentIndex, tracks.count - 1)
+            }
         }
     }
 
@@ -244,6 +269,11 @@ class PlaylistManager: ObservableObject {
     }
 
     func clearPlaylist() {
+        // An orphaned playing track would otherwise finish into a dead state
+        // (no reschedule), leaving play() a silent no-op afterwards.
+        if audioEngine?.isPlaying == true {
+            audioEngine?.stop()
+        }
         tracks.removeAll()
         currentIndex = -1
     }
@@ -361,7 +391,10 @@ class PlaylistManager: ObservableObject {
         let currentTrack = currentIndex >= 0 && currentIndex < tracks.count ? tracks[currentIndex] : nil
         tracks.shuffle()
         if let currentTrack = currentTrack {
-            currentIndex = tracks.firstIndex(where: { $0.url == currentTrack.url }) ?? -1
+            // Match by id, not URL — cue virtual tracks and duplicate entries
+            // share URLs, and grabbing the first same-URL entry desyncs
+            // auto-advance from the actually playing instance.
+            currentIndex = tracks.firstIndex(where: { $0.id == currentTrack.id }) ?? -1
         }
     }
 
@@ -441,9 +474,19 @@ class PlaylistManager: ObservableObject {
         return baseDir.appendingPathComponent(entry)
     }
 
+    /// Decides whether auto-advance may simply promote `currentIndex` because
+    /// the engine is already playing the next track via a queued gapless
+    /// segment. `engineChained` comes from the engine's `.trackDidFinish`
+    /// userInfo — track properties alone aren't enough, because a seek (or
+    /// repeat-one) drops the queued segment from the player node.
+    static func shouldPromoteChain(prev: Track?, next: Track, engineChained: Bool) -> Bool {
+        guard engineChained, let prev else { return false }
+        return prev.isCueVirtual && next.isCueVirtual && prev.url == next.url
+    }
+
     // MARK: - Private
-    private func advanceToNext() {
-        print("⚡ advanceToNext: repeatMode=\(String(describing: audioEngine?.repeatMode))")
+    private func advanceToNext(engineChained: Bool = false) {
+        print("⚡ advanceToNext: repeatMode=\(String(describing: audioEngine?.repeatMode)), chained=\(engineChained)")
         guard audioEngine?.repeatMode != .track else { return }
         guard !tracks.isEmpty else { return }
 
@@ -457,13 +500,13 @@ class PlaylistManager: ObservableObject {
             return
         }
 
-        // If a gapless chain is in flight (previous and next are CUE-virtual on the
-        // same underlying file) the engine has already started the next segment —
-        // just promote currentIndex and prepare the segment *after* it.
+        // If a gapless chain is in flight the engine has already started the
+        // next segment — just promote currentIndex and prepare the segment
+        // *after* it. Otherwise (including same-file cue neighbors after a
+        // seek dropped the queued segment) start the next track for real.
         let prev = currentIndex >= 0 && currentIndex < tracks.count ? tracks[currentIndex] : nil
         let next = tracks[nextIndex]
-        if let prev = prev,
-           prev.isCueVirtual, next.isCueVirtual, prev.url == next.url {
+        if Self.shouldPromoteChain(prev: prev, next: next, engineChained: engineChained) {
             currentIndex = nextIndex
             prepareGaplessChain(after: nextIndex)
             return

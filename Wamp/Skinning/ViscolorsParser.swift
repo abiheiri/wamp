@@ -21,7 +21,12 @@ enum ViscolorsParser {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
         let lines = normalized.split(separator: "\n", omittingEmptySubsequences: false)
-        for (i, line) in lines.enumerated() where i < 24 {
+        // Colors are assigned in the order valid color lines appear, not by
+        // raw line index — real-world viscolor.txt files open with comment or
+        // blank lines, which would otherwise shift the whole palette.
+        var colorIndex = 0
+        for line in lines {
+            guard colorIndex < 24 else { break }
             let s = String(line)
             let range = NSRange(s.startIndex..., in: s)
             guard let m = colorRegex.firstMatch(in: s, range: range),
@@ -31,10 +36,11 @@ enum ViscolorsParser {
                   let r = Int(s[rR]),
                   let g = Int(s[gR]),
                   let b = Int(s[bR]) else { continue }
-            colors[i] = NSColor(srgbRed: CGFloat(r) / 255.0,
-                                green:   CGFloat(g) / 255.0,
-                                blue:    CGFloat(b) / 255.0,
-                                alpha: 1)
+            colors[colorIndex] = NSColor(srgbRed: CGFloat(r) / 255.0,
+                                         green:   CGFloat(g) / 255.0,
+                                         blue:    CGFloat(b) / 255.0,
+                                         alpha: 1)
+            colorIndex += 1
         }
         return colors
     }

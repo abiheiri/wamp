@@ -18,6 +18,11 @@ final class WinampClassicSkin: SkinProvider {
         let info = SpriteCoordinates.resolve(key)
         guard let sheet = model.images[info.sheet] else { return nil }
         guard let cropped = sheet.cropping(to: info.rect) else { return nil }
+        // cropping(to:) intersects with the sheet bounds: a truncated sheet
+        // yields a smaller image that would be stretched to the sprite size.
+        // Treat partial sprites as missing so views use their fallback drawing.
+        guard cropped.width == Int(info.rect.width),
+              cropped.height == Int(info.rect.height) else { return nil }
 
         let image = NSImage(cgImage: cropped, size: info.rect.size)
         cache.setObject(image, forKey: cacheKey)

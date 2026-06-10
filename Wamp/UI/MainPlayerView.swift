@@ -562,8 +562,10 @@ class MainPlayerView: NSView {
         transportBar.onPlay = { [weak self] in
             guard let self, let engine = self.audioEngine else { return }
             if engine.playState == .stopped,
-               let track = self.playlistManager?.currentTrack {
-                engine.loadAndPlay(url: track.url)
+               let pm = self.playlistManager, pm.currentTrack != nil {
+                // playTrack honors CUE segment bounds (a bare loadAndPlay(url:)
+                // would play the whole album file) and re-arms gapless chaining.
+                pm.playTrack(at: pm.currentIndex)
             } else {
                 engine.play()
             }

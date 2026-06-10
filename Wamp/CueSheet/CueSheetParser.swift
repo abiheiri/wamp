@@ -52,17 +52,8 @@ enum CueSheetParser {
             currentFile = nil
         }
 
-        // Split on unicode scalars rather than Characters: in Swift "\r\n" is a single
-        // extended grapheme cluster, so a Character-level predicate matching "\r" or "\n"
-        // never fires for CRLF and the whole file collapses to one line. EAC and other
-        // Windows tooling write CRLF, which is exactly the case that broke before.
-        let lineScalars = text.unicodeScalars.split(
-            omittingEmptySubsequences: false,
-            whereSeparator: { $0 == "\n" || $0 == "\r" }
-        )
-        for (idx, raw) in lineScalars.enumerated() {
-            let line = String(String.UnicodeScalarView(raw))
-                .trimmingCharacters(in: .whitespaces)
+        for (idx, raw) in splitLines(text).enumerated() {
+            let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
             let lineNo = idx + 1
             let (keyword, rest) = splitKeyword(line)
@@ -81,7 +72,9 @@ enum CueSheetParser {
                 default: break
                 }
             case "FILE":
-                try flushFile(at: lastFileLine > 0 ? lastFileLine : lineNo)
+                // A missing-INDEX error here belongs to the open TRACK,
+                // not to the previous FILE line.
+                try flushFile(at: lastTrackLine > 0 ? lastTrackLine : (lastFileLine > 0 ? lastFileLine : lineNo))
                 let (pathPart, formatPart) = splitFileLine(rest)
                 currentFile = PendingFile(path: pathPart, format: formatPart.uppercased())
                 lastFileLine = lineNo
@@ -125,6 +118,37 @@ enum CueSheetParser {
         return CueSheet(title: title, performer: performer, genre: genre, date: date, files: resolvedFiles)
     }
 
+    /// Split on CRLF, LF, or CR — CRLF counts as a single line break so
+    /// diagnostics carry real line numbers for Windows-authored cues.
+    /// Empty lines are kept (numbering), trailing empty line is dropped.
+    /// Operates on unicode scalars because "\r\n" is one Character in Swift.
+    private static func splitLines(_ text: String) -> [String] {
+        var out: [String] = []
+        var current = ""
+        let scalars = Array(text.unicodeScalars)
+        var i = 0
+        while i < scalars.count {
+            let c = scalars[i]
+            if c == "\r" {
+                out.append(current)
+                current = ""
+                i += 1
+                if i < scalars.count, scalars[i] == "\n" { i += 1 }
+                continue
+            }
+            if c == "\n" {
+                out.append(current)
+                current = ""
+                i += 1
+                continue
+            }
+            current.unicodeScalars.append(c)
+            i += 1
+        }
+        if !current.isEmpty { out.append(current) }
+        return out
+    }
+
     /// FILE "name with spaces.flac" WAVE  →  ("name with spaces.flac", "WAVE")
     /// FILE name.wav WAVE                 →  ("name.wav",              "WAVE")
     static func splitFileLine(_ s: String) -> (String, String) {
@@ -143,9 +167,11 @@ enum CueSheetParser {
     /// "MM:SS:FF" → frame count (1/75 sec).
     static func parseTimecode(_ s: String) -> Int? {
         let parts = s.split(separator: ":")
+        // The minutes ceiling is a sanity bound far past any real disc image;
+        // without it, huge values overflow the frame math and trap.
         guard parts.count == 3,
               let m = Int(parts[0]), let sec = Int(parts[1]), let f = Int(parts[2]),
-              m >= 0, sec >= 0, sec < 60, f >= 0, f < 75 else { return nil }
+              m >= 0, m < 1_000_000, sec >= 0, sec < 60, f >= 0, f < 75 else { return nil }
         return ((m * 60) + sec) * 75 + f
     }
 

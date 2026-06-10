@@ -238,8 +238,25 @@ final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegat
     private func playSelected() {
         let row = tableView.selectedRow
         guard row >= 0, row < matches.count else { return }
-        let playlistIndex = matches[row].index
-        jumpDelegate?.playTrack(atPlaylistIndex: playlistIndex)
+        let staleIndex = matches[row].index
+        guard let stale = candidates.first(where: { $0.index == staleIndex }) else { return }
+        // The panel is non-modal: the playlist may have been reordered or
+        // edited while it was open, so the snapshot index can point at a
+        // different track now. Re-resolve against the live playlist.
+        let fresh = jumpDelegate?.jumpCandidates ?? []
+        let target: Int?
+        if staleIndex < fresh.count,
+           fresh[staleIndex].displayTitle == stale.displayTitle,
+           fresh[staleIndex].filename == stale.filename {
+            target = staleIndex
+        } else {
+            target = fresh.first(where: {
+                $0.displayTitle == stale.displayTitle && $0.filename == stale.filename
+            })?.index
+        }
+        if let target {
+            jumpDelegate?.playTrack(atPlaylistIndex: target)
+        }
         close()
     }
 }

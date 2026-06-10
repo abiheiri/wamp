@@ -151,8 +151,10 @@ class MainWindow: NSWindow {
         playlistView.onMiniPrev  = { [weak playlistManager] in playlistManager?.playPrevious() }
         playlistView.onMiniPlay  = { [weak audioEngine, weak playlistManager] in
             guard let engine = audioEngine else { return }
-            if engine.playState == .stopped, let track = playlistManager?.currentTrack {
-                engine.loadAndPlay(url: track.url)
+            if engine.playState == .stopped, let pm = playlistManager, pm.currentTrack != nil {
+                // playTrack honors CUE segment bounds (a bare loadAndPlay(url:)
+                // would play the whole album file) and re-arms gapless chaining.
+                pm.playTrack(at: pm.currentIndex)
             } else {
                 engine.play()
             }

@@ -128,6 +128,119 @@ struct PlaylistManagerTests {
         #expect(pm.tracks[pm.currentIndex].url == currentBefore.url)
     }
 
+    @Test func shuffleTracks_followsCurrentTrackIdentityWithDuplicateURLs() {
+        // Two entries share one URL (duplicate file in the playlist). After a
+        // shuffle the *instance* being played must stay current — matching by
+        // URL snaps to whichever duplicate shuffled in front.
+        let url = URL(fileURLWithPath: "/tmp/dup.m4a")
+        let dup1 = Track(url: url, title: "dup", artist: "A", album: "X", duration: 10)
+        let dup2 = Track(url: url, title: "dup", artist: "A", album: "X", duration: 10)
+        let pm = PlaylistManager()
+        pm.addTracks([makeTrack("a"), dup1, makeTrack("b"), dup2, makeTrack("c")])
+        pm.currentIndex = 3 // dup2
+        let playingID = dup2.id
+        for _ in 0..<20 {
+            pm.shuffleTracks()
+            #expect(pm.tracks[pm.currentIndex].id == playingID)
+        }
+    }
+
+    @Test func removeTrack_currentlyPlaying_engineStopsClaimingRemovedTrack() {
+        // Deleting the playing row must not leave the engine "playing" the
+        // removed file while the highlight shows the next track. The engine
+        // either starts the track that slid into the slot or stops.
+        let engine = AudioEngine()
+        engine.isPlaying = true
+        engine.playState = .playing
+        let pm = PlaylistManager()
+        pm.setAudioEngine(engine)
+        pm.addTracks([makeTrack("a"), makeTrack("b"), makeTrack("c")])
+        pm.currentIndex = 1
+        pm.removeTrack(at: 1)
+        #expect(pm.tracks.map(\.title) == ["a", "c"])
+        #expect(pm.currentIndex == 1)
+        #expect(engine.playState != .playing)
+    }
+
+    @Test func removeTrack_playingLastTrack_stops() {
+        let engine = AudioEngine()
+        engine.isPlaying = true
+        engine.playState = .playing
+        let pm = PlaylistManager()
+        pm.setAudioEngine(engine)
+        pm.addTracks([makeTrack("a"), makeTrack("b")])
+        pm.currentIndex = 1
+        pm.removeTrack(at: 1)
+        #expect(pm.tracks.map(\.title) == ["a"])
+        #expect(pm.currentIndex == 0)
+        #expect(engine.isPlaying == false)
+    }
+
+    @Test func clearPlaylist_whilePlaying_stopsEngine() {
+        let engine = AudioEngine()
+        engine.isPlaying = true
+        engine.playState = .playing
+        let pm = PlaylistManager()
+        pm.setAudioEngine(engine)
+        pm.addTracks([makeTrack("a")])
+        pm.currentIndex = 0
+        pm.clearPlaylist()
+        #expect(engine.isPlaying == false)
+        #expect(pm.currentIndex == -1)
+    }
+
+    @Test func addURLs_mixedBatchPreservesInputOrder() async throws {
+        // A FLAC with a sibling cue inside a batch must expand *in place*,
+        // not jump ahead of files listed before it.
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let plainURL = try makeSilentWav(in: dir, name: "plain.wav")
+        _ = try makeSilentWav(in: dir, name: "album.wav")
+        let flacURL = dir.appendingPathComponent("album.flac")
+        try Data().write(to: flacURL)
+        try """
+        FILE "album.wav" WAVE
+          TRACK 01 AUDIO
+            TITLE "Cue A"
+            INDEX 01 00:00:00
+        """.write(to: dir.appendingPathComponent("album.cue"), atomically: true, encoding: .utf8)
+
+        let pm = PlaylistManager()
+        await pm.addURLs([plainURL, flacURL])
+        #expect(pm.tracks.map(\.title) == ["plain", "Cue A"])
+    }
+
+    // MARK: - Gapless chain promotion decision
+
+    private func makeCueTrack(_ title: String, url: URL, start: TimeInterval, end: TimeInterval?) -> Track {
+        Track(url: url, title: title, artist: "A", album: "X",
+              duration: (end ?? start + 10) - start, cueStart: start, cueEnd: end)
+    }
+
+    @Test func shouldPromoteChain_trueOnlyWhenEngineActuallyChained() {
+        let url = URL(fileURLWithPath: "/tmp/album.flac")
+        let a = makeCueTrack("A", url: url, start: 0, end: 30)
+        let b = makeCueTrack("B", url: url, start: 30, end: 60)
+        #expect(PlaylistManager.shouldPromoteChain(prev: a, next: b, engineChained: true))
+        // After a seek the engine dropped the queued segment — promotion would
+        // silently skip track B's audio.
+        #expect(!PlaylistManager.shouldPromoteChain(prev: a, next: b, engineChained: false))
+    }
+
+    @Test func shouldPromoteChain_requiresSameFileCueNeighbors() {
+        let url = URL(fileURLWithPath: "/tmp/album.flac")
+        let other = URL(fileURLWithPath: "/tmp/other.flac")
+        let a = makeCueTrack("A", url: url, start: 0, end: 30)
+        let b = makeCueTrack("B", url: other, start: 30, end: 60)
+        let plain = makeTrack("plain")
+        #expect(!PlaylistManager.shouldPromoteChain(prev: a, next: b, engineChained: true))
+        #expect(!PlaylistManager.shouldPromoteChain(prev: a, next: plain, engineChained: true))
+        #expect(!PlaylistManager.shouldPromoteChain(prev: nil, next: b, engineChained: true))
+    }
+
     @Test func totalDuration_sumsAcrossTracks() {
         let pm = PlaylistManager()
         pm.addTracks([makeTrack("a", duration: 60), makeTrack("b", duration: 90)])
