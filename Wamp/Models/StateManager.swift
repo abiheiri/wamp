@@ -63,7 +63,9 @@ class StateManager {
 
     // MARK: - Save
     func saveState(audioEngine: AudioEngine, playlistManager: PlaylistManager) {
-        var state = AppState()
+        // Start from the persisted state so fields managed elsewhere
+        // (skinPath, window position, panel visibility) survive debounced saves.
+        var state = loadAppState()
         state.volume = audioEngine.volume
         state.balance = audioEngine.balance
         state.repeatMode = audioEngine.repeatMode.rawValue

@@ -52,6 +52,30 @@ struct StateManagerTests {
         #expect(loaded.skinPath == "/tmp/some-skin")
     }
 
+    @Test func saveState_preservesFieldsItDoesNotManage() {
+        let dir = makeTempDirectory()
+        defer { cleanup(dir) }
+
+        let sm = StateManager(directory: dir)
+        var prior = AppState()
+        prior.skinPath = "/tmp/cool-skin.wsz"
+        prior.windowX = 333
+        prior.windowY = 444
+        prior.alwaysOnTop = true
+        prior.showEqualizer = false
+        sm.saveAppState(prior)
+
+        // A debounced save (volume change etc.) must not wipe skin/window state.
+        sm.saveState(audioEngine: AudioEngine(), playlistManager: PlaylistManager())
+
+        let loaded = sm.loadAppState()
+        #expect(loaded.skinPath == "/tmp/cool-skin.wsz")
+        #expect(loaded.windowX == 333)
+        #expect(loaded.windowY == 444)
+        #expect(loaded.alwaysOnTop == true)
+        #expect(loaded.showEqualizer == false)
+    }
+
     @Test func loadAppState_missingFile_returnsDefaults() {
         let dir = makeTempDirectory()
         defer { cleanup(dir) }
