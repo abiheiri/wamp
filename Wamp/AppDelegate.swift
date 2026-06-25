@@ -352,9 +352,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         credits.append(NSAttributedString(string: "GitHub: https://github.com/wishval/wamp",
                                           attributes: linkAttrs))
 
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "Wamp",
-            .applicationVersion: "1.1.0",
+            .applicationVersion: appVersion,
             .version: "",
             .credits: credits,
             NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Valerii Bakalenko."
