@@ -375,6 +375,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var importMusicController: ImportMusicLibraryWindowController?
 
+    @MainActor
     @objc private func importFromMusicLibraryAction() {
         guard let mainWindow = mainWindow else { return }
         // The menu stays enabled while the sheet is up; a second invocation
