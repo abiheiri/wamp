@@ -103,10 +103,14 @@ final class RadioManager: ObservableObject {
     // MARK: - Playback
 
     /// Resolve a station's stream URL (if not already resolved) and start playing.
+    /// The connecting / playing / error state shown in the player marquee is driven
+    /// by `AudioEngine.streamPhase`; this just kicks it off.
     @MainActor
     func playStation(_ station: ShoutcastStation) async {
         currentStationID = station.id
-        statusMessage = "Connecting to \(station.name)…"
+        // Show "Connecting…" and stop current audio immediately, before the
+        // (possibly slow) directory lookup resolves the real stream URL.
+        audioEngine?.beginStreamConnecting()
         do {
             let url: URL
             if let resolved = station.streamURL {
@@ -115,9 +119,8 @@ final class RadioManager: ObservableObject {
                 url = try await client.getStreamURL(for: station.id)
             }
             audioEngine?.playStream(url: url)
-            statusMessage = "Playing \(station.name)"
         } catch {
-            statusMessage = "Couldn't connect to \(station.name)"
+            audioEngine?.reportStreamFailure("Couldn't connect to \(station.name)")
         }
     }
 

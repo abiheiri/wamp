@@ -516,21 +516,38 @@ class MainPlayerView: NSView {
             .sink { [weak self] data in self?.spectrumView.spectrumData = data }
             .store(in: &cancellables)
 
-        // Stream info: live ICY now-playing + active-source flips drive the marquee.
-        audioEngine.$streamNowPlaying
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard self?.audioEngine?.activeSource == .stream else { return }
-                self?.updateTrackInfo()
-                self?.needsDisplay = true
-            }
-            .store(in: &cancellables)
+        // Stream info: the connecting/playing/failed phase, live ICY now-playing,
+        // and active-source flips all drive the persistent marquee.
+        Publishers.Merge3(
+            audioEngine.$streamPhase.map { _ in () },
+            audioEngine.$streamErrorText.map { _ in () },
+            audioEngine.$streamNowPlaying.map { _ in () }
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+            guard self?.audioEngine?.activeSource == .stream else { return }
+            self?.updateTrackInfo()
+            self?.needsDisplay = true
+        }
+        .store(in: &cancellables)
 
         audioEngine.$activeSource
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateTrackInfo()
                 self?.needsDisplay = true
+            }
+            .store(in: &cancellables)
+
+        // Browse feedback (loading a genre, result counts) is transient — flash it
+        // over the LCD. Connecting/playing/errors are persistent (handled above).
+        // dropFirst skips the idle default shown at launch.
+        radioManager.$statusMessage
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] msg in
+                guard !msg.isEmpty else { return }
+                self?.lcdDisplay.showOverlay(msg, duration: 2.0)
             }
             .store(in: &cancellables)
 
@@ -660,13 +677,24 @@ class MainPlayerView: NSView {
         monoLabel.textColor = track.isStereo ? WinampTheme.greenDimText : WinampTheme.greenBright
     }
 
-    /// Marquee/info for an active SHOUTcast stream: shows the live ICY "now
-    /// playing" text, falling back to the station name before metadata arrives.
+    /// Persistent marquee for the active SHOUTcast stream, driven by the stream
+    /// lifecycle: connecting → playing (live ICY title, or station name until
+    /// metadata arrives) → a friendly error line on failure.
     private func updateStreamInfo() {
         let station = radioManager?.currentStation
         let name = station?.name ?? "SHOUTcast Stream"
-        let nowPlaying = audioEngine?.streamNowPlaying ?? ""
-        lcdDisplay.text = nowPlaying.isEmpty ? name : "\(name): \(nowPlaying)"
+        switch audioEngine?.streamPhase ?? .idle {
+        case .connecting:
+            lcdDisplay.text = "Connecting to \(name)…"
+        case .playing:
+            let nowPlaying = audioEngine?.streamNowPlaying ?? ""
+            lcdDisplay.text = nowPlaying.isEmpty ? name : "\(name): \(nowPlaying)"
+        case .failed:
+            let detail = audioEngine?.streamErrorText ?? ""
+            lcdDisplay.text = detail.isEmpty ? "Couldn't play \(name)" : detail
+        case .idle:
+            lcdDisplay.text = name
+        }
         let br = station?.bitrate ?? 0
         bitrateLabel.stringValue = br > 0 ? "\(br)" : "---"
         bitrateLabel.textColor = WinampTheme.greenBright

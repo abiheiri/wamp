@@ -23,6 +23,14 @@ enum PlaybackSource {
     case stream
 }
 
+/// Lifecycle of the active SHOUTcast stream, surfaced in the player marquee.
+enum StreamPhase {
+    case idle
+    case connecting
+    case playing
+    case failed
+}
+
 extension Notification.Name {
     static let trackDidFinish = Notification.Name("trackDidFinish")
 }
@@ -64,6 +72,11 @@ class AudioEngine: ObservableObject {
     /// Live ICY "now playing" text for the active stream (empty when not streaming
     /// or before the first metadata block arrives).
     @Published private(set) var streamNowPlaying: String = ""
+    /// Connecting → playing → failed lifecycle of the active stream.
+    @Published private(set) var streamPhase: StreamPhase = .idle
+    /// User-friendly reason shown when `streamPhase == .failed` (the raw technical
+    /// error stays in the console).
+    @Published private(set) var streamErrorText: String = ""
     /// URL of the stream currently (or most recently) playing, so the play button
     /// can reconnect after a stop without re-resolving through the directory.
     private(set) var currentStreamURL: URL?
@@ -315,6 +328,7 @@ class AudioEngine: ObservableObject {
         currentSegmentEndFrame = 0
         stopTimeUpdates()
         stopStream()
+        streamPhase = .idle
     }
 
     func togglePlayPause() {
@@ -349,6 +363,8 @@ class AudioEngine: ObservableObject {
         activeSource = .stream
         currentStreamURL = streamURL
         streamNowPlaying = ""
+        streamErrorText = ""
+        streamPhase = .connecting
 
         // Create and attach a dedicated node for streaming. It joins the shared
         // sourceMixer on its own input bus — never the EQ directly — so the local
@@ -467,6 +483,7 @@ class AudioEngine: ObservableObject {
                     DispatchQueue.main.async { [weak self] in
                         self?.isPlaying = true
                         self?.playState = .playing
+                        self?.streamPhase = .playing
                         self?.duration = 0 // live stream — no fixed duration
                     }
                 }
@@ -484,7 +501,7 @@ class AudioEngine: ObservableObject {
         parser.onError = { [weak self] error in
             print("🔴 AudioEngine: stream error: \(error)")
             DispatchQueue.main.async {
-                self?.handleStreamError()
+                self?.handleStreamError(error)
             }
         }
 
@@ -516,11 +533,56 @@ class AudioEngine: ObservableObject {
         playStream(url: url)
     }
 
-    private func handleStreamError() {
+    /// Mark the active stream as connecting before its URL is even resolved, so the
+    /// marquee shows "Connecting…" immediately on click and any local audio stops.
+    func beginStreamConnecting() {
+        stop()
+        activeSource = .stream
+        streamNowPlaying = ""
+        streamErrorText = ""
+        streamPhase = .connecting
+    }
+
+    /// Surface a friendly failure (e.g. the directory couldn't resolve a stream URL)
+    /// without a parser ever starting.
+    func reportStreamFailure(_ message: String) {
+        stopStream()
+        streamErrorText = message
+        streamPhase = .failed
+    }
+
+    private func handleStreamError(_ error: Error) {
         guard isStreaming else { return }
         isPlaying = false
         playState = .stopped
         stopStream()
+
+        // A cancellation is a normal user-initiated stop, not a failure.
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled {
+            streamPhase = .idle
+            return
+        }
+        streamErrorText = Self.friendlyStreamError(error)
+        streamPhase = .failed
+    }
+
+    /// Maps a raw streaming error to a short, non-technical line for the marquee.
+    private static func friendlyStreamError(_ error: Error) -> String {
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain {
+            switch ns.code {
+            case NSURLErrorNotConnectedToInternet:
+                return "No internet connection"
+            case NSURLErrorTimedOut:
+                return "Connection timed out"
+            case NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost, NSURLErrorDNSLookupFailed:
+                return "Station unavailable"
+            default:
+                break
+            }
+        }
+        return "Stream error — station may be offline"
     }
 
     // MARK: - EQ

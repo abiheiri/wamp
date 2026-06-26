@@ -32,7 +32,6 @@ class PlaylistView: NSView {
     private let radioTab = WinampButton(title: "RADIO", style: .toggle)
     private let genrePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let radioLoadButton = WinampButton(title: "LOAD", style: .action)
-    private let radioStatusLabel = NSTextField(labelWithString: "")
 
     // Set by MainWindow.bindToModels / AppDelegate. Baked into pledit.bmp's
     // BR corner; mirrors classic Winamp's playlist-local transport row.
@@ -178,16 +177,6 @@ class PlaylistView: NSView {
         radioLoadButton.onClick = { [weak self] in self?.loadSelectedGenre() }
         radioLoadButton.isHidden = true
         addSubview(radioLoadButton)
-
-        radioStatusLabel.font = WinampTheme.bitrateFont
-        radioStatusLabel.textColor = WinampTheme.greenSecondary
-        radioStatusLabel.backgroundColor = .black
-        radioStatusLabel.drawsBackground = true
-        radioStatusLabel.isBezeled = false
-        radioStatusLabel.isEditable = false
-        radioStatusLabel.lineBreakMode = .byTruncatingTail
-        radioStatusLabel.isHidden = true
-        addSubview(radioStatusLabel)
     }
 
     private func setMode(_ newMode: PanelMode) {
@@ -197,13 +186,11 @@ class PlaylistView: NSView {
         radioTab.isActive = (newMode == .radio)
         genrePopup.isHidden = !radio
         radioLoadButton.isHidden = !radio
-        radioStatusLabel.isHidden = !radio
         searchField.placeholderString = (newMode == .radio) ? "Search stations..." : "Search playlist..."
         // Show the active list's own query in the shared search field.
         searchField.stringValue = (newMode == .radio)
             ? (radioManager?.searchQuery ?? "")
             : (playlistManager?.searchQuery ?? "")
-        radioStatusLabel.stringValue = radioManager?.statusMessage ?? ""
         tableView.reloadData()
         if newMode == .radio { highlightCurrentStation() }
         needsLayout = true
@@ -281,7 +268,6 @@ class PlaylistView: NSView {
             let radioVisible = !active && mode == .radio
             genrePopup.isHidden = !radioVisible
             radioLoadButton.isHidden = !radioVisible
-            radioStatusLabel.isHidden = !radioVisible
         }
         // Classic Winamp playlist rows are tight — text.bmp glyphs are 6 px tall.
         tableView.rowHeight = active ? 13 : 18
@@ -450,7 +436,6 @@ class PlaylistView: NSView {
         radioTab.frame = .zero
         genrePopup.frame = .zero
         radioLoadButton.frame = .zero
-        radioStatusLabel.frame = .zero
 
         // Native scroller is hidden in skinned mode — full column width.
         let newWidth = scrollView.frame.width - 2
@@ -512,9 +497,6 @@ class PlaylistView: NSView {
         let popupW: CGFloat = 88
         radioLoadButton.frame = NSRect(x: w - pad - loadW, y: stripY, width: loadW, height: tabH)
         genrePopup.frame = NSRect(x: w - pad - loadW - 2 - popupW, y: stripY - 1, width: popupW, height: tabH + 2)
-        let statusX = pad + 2 * tabW + 6
-        radioStatusLabel.frame = NSRect(x: statusX, y: stripY,
-                                        width: max(0, genrePopup.frame.minX - 4 - statusX), height: tabH)
 
         // Search
         searchField.frame = NSRect(x: pad, y: bottomBarH, width: w - 2 * pad, height: searchH)
@@ -555,14 +537,6 @@ class PlaylistView: NSView {
                 guard let self, self.mode == .radio else { return }
                 self.tableView.reloadData()
                 self.highlightCurrentStation()
-            }
-            .store(in: &cancellables)
-
-        radioManager.$statusMessage
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] msg in
-                guard let self, self.mode == .radio else { return }
-                self.radioStatusLabel.stringValue = msg
             }
             .store(in: &cancellables)
 
