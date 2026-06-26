@@ -21,9 +21,20 @@ We *do* read your Music.app library to import **local** files — tracks on disk
 
 Wamp reads your local Music.app library. It does not sync with iCloud, does not download cloud-only tracks, does not re-evaluate smart playlists. If the file isn't on disk, Wamp can't play it.
 
-## SHOUTcast streaming
+## What Wamp **does** support
 
-This is **in scope**, despite being network audio. It earns an exception for three reasons:
+Local audio files and SHOUTcast internet radio.
+
+### Local files
+
+- **Formats:** MP3, AAC, M4A, FLAC, WAV, AIFF, OGG
+- **Sources:** any file on disk, including tracks Apple Music stores locally (downloaded from the service for offline playback, or ripped from CD into your library)
+- **Playlist formats:** M3U, M3U8, CUE sheets
+- **Import:** one-way import from the Music.app local library (see [Apple Music import](#)); no write-back, no sync
+
+### SHOUTcast internet radio
+
+SHOUTcast is **implemented**, not a non-goal. It earns an exception for three reasons:
 
 1. **No DRM.** SHOUTcast streams are raw MP3/AAC over HTTP with ICY metadata. The audio bytes arrive unencrypted and can be fed directly into Wamp's `AVAudioEngine` graph — unlike Spotify (DRM-encumbered, no DSP path) or Apple Music (`ApplicationMusicPlayer` bypasses the engine).
 
@@ -33,13 +44,6 @@ This is **in scope**, despite being network audio. It earns an exception for thr
 
 The implementation uses `AudioFileStream` + `AudioConverter` to decode the stream into PCM buffers, which are scheduled on a player node inside the existing `AVAudioEngine`. EQ, spectrum analyzer, volume, balance — everything works exactly as it does for local files.
 
-## What Wamp **does** support
-
-Local audio files and SHOUTcast internet radio.
-
-- **Formats:** MP3, AAC, M4A, FLAC, WAV, AIFF, OGG
-- **Sources:** any file on disk, including tracks Apple Music stores locally (downloaded from the service for offline playback, or ripped from CD into your library); SHOUTcast/ICEcast HTTP streams with ICY metadata
-- **Playlist formats:** M3U, M3U8, CUE sheets, PLS (SHOUTcast tune-in)
-- **Import:** one-way import from the Music.app local library (see [Apple Music import](#)); no write-back, no sync
+- **Playlist formats:** PLS (SHOUTcast tune-in)
 
 In short: if the bytes live on your disk or come over an unencrypted internet radio stream, Wamp will play them with full DSP.

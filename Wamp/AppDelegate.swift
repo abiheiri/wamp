@@ -362,7 +362,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .applicationVersion: appVersion,
             .version: "",
             .credits: credits,
-            NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Valerii Bakalenko."
+            NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Valerii Bakalenko and AL Biheiri."
         ])
         NSApp.activate(ignoringOtherApps: true)
     }
