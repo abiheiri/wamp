@@ -17,8 +17,10 @@ enum ICYMetadataParser {
     /// Extract the `icy-metaint` value (metadata interval in bytes) from HTTP response headers.
     /// Returns 0 if the header is absent or unparseable (meaning no metadata).
     nonisolated static func metadataInterval(from headers: [String: String]) -> Int {
-        guard let raw = headers["icy-metaint"],
-              let interval = Int(raw),
+        // HTTP header names are case-insensitive; servers send icy-metaint in varied casing
+        // (e.g. "Icy-MetaInt", "ICY-METAINT"). HTTPURLResponse preserves the server's casing.
+        guard let raw = headers.first(where: { $0.key.caseInsensitiveCompare("icy-metaint") == .orderedSame })?.value,
+              let interval = Int(raw.trimmingCharacters(in: .whitespaces)),
               interval > 0 else { return 0 }
         return interval
     }

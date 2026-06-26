@@ -348,38 +348,46 @@ class AudioEngine: ObservableObject {
                   let outputFormat = self.streamOutputFormat,
                   let streamNode = self.streamSourceNode else { return }
 
+            let inputFormat = converter.inputFormat
+            let inASBD = inputFormat.streamDescription.pointee
+            // Frames produced per compressed packet (MP3 = 1152, AAC = 1024); fall back if unknown.
+            let framesPerPacket = inASBD.mFramesPerPacket == 0 ? 1152 : inASBD.mFramesPerPacket
+            // Account for resampling to the 44.1 kHz output (e.g. a 22.05 kHz stream doubles frame count).
+            let resampleRatio = inputFormat.sampleRate > 0 ? outputFormat.sampleRate / inputFormat.sampleRate : 1
+            let outputCapacity = AVAudioFrameCount(ceil(Double(framesPerPacket) * resampleRatio)) + 1024
+
             for packet in packets {
                 let packetSize = packet.data.count
+                guard packetSize > 0 else { continue }
 
-                // Create compressed input buffer and copy audio data into its mData area.
+                // Create a compressed input buffer holding this single packet.
+                // `inputBuffer.data` IS the destination for the raw compressed bytes —
+                // it is not an AudioBufferList.
                 let inputBuffer = AVAudioCompressedBuffer(
-                    format: converter.inputFormat,
+                    format: inputFormat,
                     packetCapacity: 1,
                     maximumPacketSize: packetSize
                 )
 
-                let ablPtr = UnsafeMutableAudioBufferListPointer(
-                    inputBuffer.data.assumingMemoryBound(to: AudioBufferList.self)
-                )
-                guard ablPtr.count > 0, let mData = ablPtr[0].mData else { continue }
-
-                (packet.data as NSData).getBytes(mData, length: packetSize)
-                // Must write back via subscript — AudioBuffer is a value type.
-                ablPtr[0] = AudioBuffer(
-                    mNumberChannels: ablPtr[0].mNumberChannels,
-                    mDataByteSize: UInt32(packetSize),
-                    mData: mData
-                )
-                inputBuffer.packetCount = 1
-                if let desc = packet.packetDescription {
-                    inputBuffer.packetDescriptions?.pointee = desc
+                packet.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                    if let base = raw.baseAddress {
+                        inputBuffer.data.copyMemory(from: base, byteCount: packetSize)
+                    }
                 }
+                inputBuffer.byteLength = UInt32(packetSize)
+                inputBuffer.packetCount = 1
+                // The packet now lives at offset 0 in this fresh buffer, so the description
+                // must reference offset 0 regardless of where it sat in the stream.
+                inputBuffer.packetDescriptions?.pointee = AudioStreamPacketDescription(
+                    mStartOffset: 0,
+                    mVariableFramesInPacket: packet.packetDescription?.mVariableFramesInPacket ?? 0,
+                    mDataByteSize: UInt32(packetSize)
+                )
 
                 // Convert to PCM
-                let frameCapacity: AVAudioFrameCount = 1152 // MP3 frame default
                 guard let outputBuffer = AVAudioPCMBuffer(
                     pcmFormat: outputFormat,
-                    frameCapacity: frameCapacity
+                    frameCapacity: outputCapacity
                 ) else { continue }
 
                 // Provide the single input packet exactly once.
@@ -403,6 +411,9 @@ class AudioEngine: ObservableObject {
                     }
                     continue
                 }
+
+                // A converted buffer with no frames carries no audio — don't schedule it.
+                guard outputBuffer.frameLength > 0 else { continue }
 
                 // Schedule into the player node
                 streamNode.scheduleBuffer(outputBuffer, completionHandler: nil)

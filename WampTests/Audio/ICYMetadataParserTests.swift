@@ -102,4 +102,10 @@ struct ICYMetadataParserTests {
         let interval = ICYMetadataParser.metadataInterval(from: headers)
         #expect(interval == 0)
     }
+
+    @Test func metadataInterval_caseInsensitiveHeader() {
+        // Servers send the header with varied casing; lookup must be case-insensitive.
+        #expect(ICYMetadataParser.metadataInterval(from: ["Icy-MetaInt": "8192"]) == 8192)
+        #expect(ICYMetadataParser.metadataInterval(from: ["ICY-METAINT": "16000"]) == 16000)
+    }
 }

@@ -95,7 +95,7 @@ final class ShoutcastStreamParser: NSObject, URLSessionDataDelegate {
 
 extension ShoutcastStreamParser {
 
-    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse) async {
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse) async -> URLSession.ResponseDisposition {
         print("📡 ShoutcastStreamParser: didReceive response, status: \((response as? HTTPURLResponse)?.statusCode ?? -1), mime: \(response.mimeType ?? "?")")
         // Extract ICY metadata interval from HTTP headers
         if let httpResponse = response as? HTTPURLResponse {
@@ -124,10 +124,11 @@ extension ShoutcastStreamParser {
         guard status == noErr, let streamID = streamID else {
             print("🔴 ShoutcastStreamParser: AudioFileStreamOpen failed: \(status)")
             onError?(ShoutcastStreamError.audioFileStreamInit(status))
-            return
+            return .cancel
         }
         audioFileStreamID = streamID
         print("📡 ShoutcastStreamParser: AudioFileStream opened OK, hint=\(hint), icyInterval=\(icyInterval)")
+        return .allow
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
