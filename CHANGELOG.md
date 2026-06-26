@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (10-band EQ, volume, balance) — the local playlist stays separate.
   Playback is driven entirely by the main transport buttons: play/stop
   control the stream, and next/previous step through the station list.
+  Genres are pulled live from the directory as a main/sub tree (cached to
+  disk, with a bundled fallback when offline), the station list shows
+  listener counts, and an empty-state row guides you when nothing has
+  loaded.
   The LCD marquee shows the live ICY "now playing" title. (The standalone
   SHOUTcast Radio window has been removed in favour of this.)
 
