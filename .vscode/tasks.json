@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Wamp",
+      "type": "shell",
+      "command": "xcodebuild",
+      "args": [
+        "-project",
+        "Wamp.xcodeproj",
+        "-scheme",
+        "Wamp",
+        "-configuration",
+        "Debug",
+        "-derivedDataPath",
+        "build",
+        "build"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gcc"],
+      "detail": "Build Wamp macOS app with xcodebuild"
+    }
+  ]
+}
