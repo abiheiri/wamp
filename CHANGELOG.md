@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-26
+
 ### Added
 
 - **SHOUTcast internet radio, merged into the playlist panel.** A
@@ -20,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   loaded.
   The LCD marquee shows the live ICY "now playing" title. (The standalone
   SHOUTcast Radio window has been removed in favour of this.)
+
+## [1.1.0] - 2026-06-25
+
+### Added
 
 - **Mini-transport buttons in the skinned playlist are now interactive.**
   The five baked buttons (prev / play / pause / stop / next) in
