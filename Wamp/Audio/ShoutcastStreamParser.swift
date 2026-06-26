@@ -48,7 +48,7 @@ final class ShoutcastStreamParser: NSObject, URLSessionDataDelegate {
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForResource = 86400 // long-lived stream
-        session = URLSession(configuration: config, delegate: self, delegateQueue: .main)
+        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
 
         var request = URLRequest(url: url)
         request.setValue("1", forHTTPHeaderField: "Icy-MetaData")
