@@ -68,6 +68,24 @@ struct Track: Identifiable, Codable, Equatable {
 
     var isStereo: Bool { channels >= 2 }
 
+    // MARK: - Factory: SHOUTcast stream
+
+    /// Creates a streaming Track from a SHOUTcast station with its resolved stream URL.
+    /// Stream tracks have `duration == 0` (live stream, no fixed length).
+    static func shoutcastStream(from station: ShoutcastStation, streamURL: URL) -> Track {
+        Track(
+            url: streamURL,
+            title: station.name,
+            artist: station.name,
+            album: "SHOUTcast Radio",
+            duration: 0,
+            genre: station.genre,
+            bitrate: station.bitrate,
+            sampleRate: 0,
+            channels: 2
+        )
+    }
+
     @MainActor
     static func fromURL(_ url: URL) async -> Track {
         let asset = AVURLAsset(url: url)
