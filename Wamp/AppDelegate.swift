@@ -13,6 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private weak var doubleSizeMenuItem: NSMenuItem?
     private var jumpToFileWindow: JumpToFileWindow?
     private var jumpToFileMonitor: Any?
+    private var shoutcastBrowserWindow: ShoutcastBrowserWindow?
 
     static func main() {
         let app = NSApplication.shared
@@ -90,6 +91,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeyManager = HotKeyManager(audioEngine: audioEngine, playlistManager: playlistManager)
 
         installJumpToFileShortcut()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(stopShoutcastStream),
+            name: .shoutcastStopStream,
+            object: nil
+        )
 
         NSApp.activate()
     }
@@ -258,6 +266,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let shuffle = item("Shuffle", #selector(toggleShuffle), "s", symbol: "shuffle")
         let jump = item("Jump to File…", #selector(presentJumpToFileWindow), "j", symbol: "magnifyingglass")
         jump.keyEquivalentModifierMask = [.command]
+        let shoutcast = item("SHOUTcast Radio…", #selector(presentShoutcastBrowser), "r", symbol: "antenna.radiowaves.left.and.right")
+        shoutcast.keyEquivalentModifierMask = [.command, .shift]
 
         // View
         let showPlayer = item("Show Player", #selector(showPlayerAction), "1", symbol: "play.rectangle")
@@ -283,7 +293,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             file: [openFile, openFolder, .separator(), importMusic],
             edit: [selectAll],
             controls: [playPause, stop, next, prev, .separator(),
-                       repeat_, shuffle, .separator(), jump],
+                       repeat_, shuffle, .separator(), jump, shoutcast],
             view: [showPlayer, showEQ, showPL, .separator(),
                    alwaysOnTop, doubleSize, .separator(),
                    loadSkin, unloadSkin],
@@ -564,6 +574,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
+    // MARK: - SHOUTcast Browser
+    @objc func presentShoutcastBrowser() {
+        if shoutcastBrowserWindow == nil {
+            let panel = ShoutcastBrowserWindow()
+            panel.browserDelegate = self
+            shoutcastBrowserWindow = panel
+        }
+        shoutcastBrowserWindow?.present(over: mainWindow)
+    }
+
+    @objc private func stopShoutcastStream() {
+        audioEngine.stopStream()
+    }
+
     // MARK: - Jump to File
     @objc func presentJumpToFileWindow() {
         if jumpToFileWindow == nil {
@@ -630,5 +654,13 @@ extension AppDelegate: JumpToFileDelegate {
 
     func playTrack(atPlaylistIndex index: Int) {
         playlistManager.playTrack(at: index)
+    }
+}
+
+// MARK: - ShoutcastBrowserDelegate
+extension AppDelegate: ShoutcastBrowserDelegate {
+    func playStream(url: URL, title: String) {
+        print("SHOUTcast: Starting stream — \(title)")
+        audioEngine.playStream(url: url)
     }
 }
