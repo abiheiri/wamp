@@ -12,17 +12,21 @@ final class RadioManager: ObservableObject {
     @Published private(set) var currentStationID: Int?
     @Published private(set) var statusMessage: String = "Pick a genre and load"
     @Published private(set) var isLoading = false
-
-    /// Genres offered in the Radio tab's genre picker.
-    static let popularGenres = [
-        "Alternative", "Blues", "Classical", "Country", "Dance",
-        "Electronic", "Folk", "Hip Hop", "Indie", "Jazz",
-        "Latin", "Metal", "Pop", "R&B", "Reggae",
-        "Rock", "Soul", "Talk", "Top 40", "World"
-    ]
+    /// Main/sub genre tree for the picker. Starts with the bundled defaults so the
+    /// menu is never empty, then upgrades to the live (or cached) directory tree.
+    @Published private(set) var genres: [ShoutcastGenre] = ShoutcastGenre.bundledDefaults
 
     private weak var audioEngine: AudioEngine?
     private let client: ShoutcastDirectoryAPI
+
+    /// True once a live genre fetch has succeeded this session (skip re-fetching).
+    private var hasLiveGenres = false
+    private var isLoadingGenres = false
+
+    /// On-disk cache of the last good genre tree, in the same dir as other state.
+    private let genreCacheURL: URL = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        .appendingPathComponent("Wamp/genres.json")
 
     init(client: ShoutcastDirectoryAPI = ShoutcastDirectoryClient()) {
         self.client = client
@@ -89,6 +93,9 @@ final class RadioManager: ObservableObject {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, !isLoading else { return }
         isLoading = true
+        // A directory-wide search returns its own result set — clear the local
+        // text filter so those results aren't narrowed again by the typed query.
+        searchQuery = ""
         statusMessage = "Searching…"
         do {
             stations = try await client.search(q)
@@ -98,6 +105,46 @@ final class RadioManager: ObservableObject {
             statusMessage = "Search failed"
         }
         isLoading = false
+    }
+
+    // MARK: - Genre tree (lazy, cached, with fallback)
+
+    /// Loads the genre tree the first time the Radio tab is opened: disk cache for
+    /// an instant menu, then a live refresh. Falls back to the cache or the bundled
+    /// defaults if the directory is unreachable. Safe to call repeatedly.
+    @MainActor
+    func loadGenresIfNeeded() async {
+        guard !hasLiveGenres, !isLoadingGenres else { return }
+        isLoadingGenres = true
+        defer { isLoadingGenres = false }
+
+        // Show cached genres immediately (only if we're still on bundled defaults).
+        if genres == ShoutcastGenre.bundledDefaults, let cached = loadCachedGenres(), !cached.isEmpty {
+            genres = cached
+        }
+
+        do {
+            let fresh = try await client.fetchGenreTree()
+            if !fresh.isEmpty {
+                genres = fresh
+                hasLiveGenres = true
+                saveCachedGenres(fresh)
+            }
+        } catch {
+            // Offline or markup changed — keep whatever we have (cache or defaults).
+        }
+    }
+
+    private func loadCachedGenres() -> [ShoutcastGenre]? {
+        guard let data = try? Data(contentsOf: genreCacheURL) else { return nil }
+        return try? JSONDecoder().decode([ShoutcastGenre].self, from: data)
+    }
+
+    private func saveCachedGenres(_ tree: [ShoutcastGenre]) {
+        guard let data = try? JSONEncoder().encode(tree) else { return }
+        try? FileManager.default.createDirectory(
+            at: genreCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: genreCacheURL)
     }
 
     // MARK: - Playback

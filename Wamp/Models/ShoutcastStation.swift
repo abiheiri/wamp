@@ -43,4 +43,19 @@ struct ShoutcastStation: Identifiable, Codable, Equatable {
     var displayString: String {
         "\(name) (\(bitrate) kbps \(format))"
     }
+
+    /// Compact listener count for the narrow station list (e.g. 5809 → "5.8K").
+    var listenersDisplay: String { Self.abbreviateListeners(listeners) }
+
+    /// Abbreviates a listener count to fit the 275px window: <1000 as-is,
+    /// thousands as "5.8K" / "12K", millions as "1.5M".
+    static func abbreviateListeners(_ n: Int) -> String {
+        if n < 1000 { return "\(n)" }
+        if n < 1_000_000 {
+            let k = Double(n) / 1000
+            return k < 10 ? String(format: "%.1fK", k) : "\(Int(k.rounded()))K"
+        }
+        let m = Double(n) / 1_000_000
+        return m < 10 ? String(format: "%.1fM", m) : "\(Int(m.rounded()))M"
+    }
 }

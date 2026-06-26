@@ -30,8 +30,7 @@ class PlaylistView: NSView {
     private var mode: PanelMode = .playlist
     private let playlistTab = WinampButton(title: "PLAYLIST", style: .toggle)
     private let radioTab = WinampButton(title: "RADIO", style: .toggle)
-    private let genrePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let radioLoadButton = WinampButton(title: "LOAD", style: .action)
+    private let genreButton = WinampButton(title: "GENRE \u{25BE}", style: .action)
 
     // Set by MainWindow.bindToModels / AppDelegate. Baked into pledit.bmp's
     // BR corner; mirrors classic Winamp's playlist-local transport row.
@@ -167,16 +166,13 @@ class PlaylistView: NSView {
         addSubview(playlistTab)
         addSubview(radioTab)
 
-        genrePopup.addItems(withTitles: RadioManager.popularGenres)
-        genrePopup.selectItem(withTitle: "Rock")
-        genrePopup.font = WinampTheme.bitrateFont
-        genrePopup.controlSize = .mini
-        genrePopup.isHidden = true
-        addSubview(genrePopup)
-
-        radioLoadButton.onClick = { [weak self] in self?.loadSelectedGenre() }
-        radioLoadButton.isHidden = true
-        addSubview(radioLoadButton)
+        genreButton.onClick = { [weak self] in
+            guard let self else { return }
+            let anchor = NSPoint(x: self.genreButton.frame.minX, y: self.genreButton.frame.minY)
+            self.buildGenreMenu().popUp(positioning: nil, at: anchor, in: self)
+        }
+        genreButton.isHidden = true
+        addSubview(genreButton)
     }
 
     private func setMode(_ newMode: PanelMode) {
@@ -184,41 +180,64 @@ class PlaylistView: NSView {
         let radio = (newMode == .radio) && !WinampTheme.skinIsActive
         playlistTab.isActive = !(newMode == .radio)
         radioTab.isActive = (newMode == .radio)
-        genrePopup.isHidden = !radio
-        radioLoadButton.isHidden = !radio
-        searchField.placeholderString = (newMode == .radio) ? "Search stations..." : "Search playlist..."
+        genreButton.isHidden = !radio
+        searchField.placeholderString = (newMode == .radio) ? "Filter — \u{21B5} searches all" : "Search playlist..."
         // Show the active list's own query in the shared search field.
         searchField.stringValue = (newMode == .radio)
             ? (radioManager?.searchQuery ?? "")
             : (playlistManager?.searchQuery ?? "")
         tableView.reloadData()
-        if newMode == .radio { highlightCurrentStation() }
+        if newMode == .radio {
+            highlightCurrentStation()
+            // Pull the live genre tree the first time radio is opened.
+            if let rm = radioManager { Task { @MainActor in await rm.loadGenresIfNeeded() } }
+        }
         needsLayout = true
         needsDisplay = true
     }
 
-    private func loadSelectedGenre() {
-        guard let genre = genrePopup.titleOfSelectedItem, let rm = radioManager else { return }
-        Task { @MainActor in await rm.loadGenre(genre) }
+    /// Builds the hierarchical genre menu from `RadioManager.genres`: each main
+    /// genre with subgenres becomes a submenu led by an "All <Genre>" item (a menu
+    /// item that owns a submenu isn't itself clickable). Used by both the unskinned
+    /// GENRE button and the skinned RADIO tab. Genre name rides in representedObject.
+    private func buildGenreMenu() -> NSMenu {
+        let menu = NSMenu()
+        let tree = radioManager?.genres ?? ShoutcastGenre.bundledDefaults
+        for main in tree {
+            let item = NSMenuItem(title: main.name, action: nil, keyEquivalent: "")
+            if main.subgenres.isEmpty {
+                item.action = #selector(genreMenuPick(_:))
+                item.target = self
+                item.representedObject = main.name
+            } else {
+                let sub = NSMenu()
+                let all = NSMenuItem(title: "All \(main.name)", action: #selector(genreMenuPick(_:)), keyEquivalent: "")
+                all.target = self
+                all.representedObject = main.name
+                sub.addItem(all)
+                sub.addItem(.separator())
+                for g in main.subgenres {
+                    let it = NSMenuItem(title: g.name, action: #selector(genreMenuPick(_:)), keyEquivalent: "")
+                    it.target = self
+                    it.representedObject = g.name
+                    sub.addItem(it)
+                }
+                item.submenu = sub
+            }
+            menu.addItem(item)
+        }
+        return menu
     }
 
-    /// Genre picker for skinned mode (no native popup) — reuses the same NSMenu
-    /// approach the skinned ADD/REM/SEL/MISC buttons use.
+    /// Skinned mode: open the genre tree anchored to the RADIO tab.
     private func showGenreMenu() {
-        let menu = NSMenu()
-        for genre in RadioManager.popularGenres {
-            let it = NSMenuItem(title: genre, action: #selector(genreMenuPick(_:)), keyEquivalent: "")
-            it.target = self
-            menu.addItem(it)
-        }
         let r = skinnedRadioTabRect()
-        menu.popUp(positioning: nil, at: NSPoint(x: r.minX, y: r.minY), in: self)
+        buildGenreMenu().popUp(positioning: nil, at: NSPoint(x: r.minX, y: r.minY), in: self)
     }
 
     @objc private func genreMenuPick(_ sender: NSMenuItem) {
-        guard let rm = radioManager else { return }
-        let genre = sender.title
-        Task { @MainActor in await rm.loadGenre(genre) }
+        guard let name = sender.representedObject as? String, let rm = radioManager else { return }
+        Task { @MainActor in await rm.loadGenre(name) }
     }
 
     // Skinned PLAYLIST | RADIO tab strip geometry (built once, used by both
@@ -266,8 +285,7 @@ class PlaylistView: NSView {
             setMode(.playlist)
         } else {
             let radioVisible = !active && mode == .radio
-            genrePopup.isHidden = !radioVisible
-            radioLoadButton.isHidden = !radioVisible
+            genreButton.isHidden = !radioVisible
         }
         // Classic Winamp playlist rows are tight — text.bmp glyphs are 6 px tall.
         tableView.rowHeight = active ? 13 : 18
@@ -434,8 +452,7 @@ class PlaylistView: NSView {
         infoLabel.frame = .zero
         playlistTab.frame = .zero
         radioTab.frame = .zero
-        genrePopup.frame = .zero
-        radioLoadButton.frame = .zero
+        genreButton.frame = .zero
 
         // Native scroller is hidden in skinned mode — full column width.
         let newWidth = scrollView.frame.width - 2
@@ -492,11 +509,9 @@ class PlaylistView: NSView {
         playlistTab.frame = NSRect(x: pad, y: stripY, width: tabW, height: tabH)
         radioTab.frame = NSRect(x: pad + tabW + 1, y: stripY, width: tabW, height: tabH)
 
-        // Radio-only controls live on the right of the strip.
-        let loadW: CGFloat = 34
-        let popupW: CGFloat = 88
-        radioLoadButton.frame = NSRect(x: w - pad - loadW, y: stripY, width: loadW, height: tabH)
-        genrePopup.frame = NSRect(x: w - pad - loadW - 2 - popupW, y: stripY - 1, width: popupW, height: tabH + 2)
+        // Radio-only GENRE button lives on the right of the strip.
+        let genreW: CGFloat = 60
+        genreButton.frame = NSRect(x: w - pad - genreW, y: stripY, width: genreW, height: tabH)
 
         // Search
         searchField.frame = NSRect(x: pad, y: bottomBarH, width: w - 2 * pad, height: searchH)
@@ -537,6 +552,17 @@ class PlaylistView: NSView {
                 guard let self, self.mode == .radio else { return }
                 self.tableView.reloadData()
                 self.highlightCurrentStation()
+            }
+            .store(in: &cancellables)
+
+        // Keep the empty-state placeholder (which echoes the status line) fresh
+        // while a genre is loading or after a failure, when the list has no rows.
+        radioManager.$statusMessage
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.mode == .radio,
+                      (self.radioManager?.filteredStations.isEmpty ?? true) else { return }
+                self.tableView.reloadData()
             }
             .store(in: &cancellables)
 
@@ -963,12 +989,20 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        if mode == .radio { return radioManager?.filteredStations.count ?? 0 }
+        if mode == .radio {
+            // Show a single placeholder row when there are no stations to list.
+            let count = radioManager?.filteredStations.count ?? 0
+            return count == 0 ? 1 : count
+        }
         return displayedTracks.count
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        if mode == .radio { return stationCell(for: row, column: tableColumn) }
+        if mode == .radio {
+            let list = radioManager?.filteredStations ?? []
+            return list.isEmpty ? radioPlaceholderCell(column: tableColumn)
+                                : stationCell(for: row, column: tableColumn)
+        }
         let tracks = displayedTracks
         guard row < tracks.count else { return nil }
         let track = tracks[row]
@@ -1067,8 +1101,12 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
         numLabel.frame = NSRect(x: 0, y: yOffset, width: numWidth, height: textH)
         cell.addSubview(numLabel)
 
-        let info = station.bitrate > 0 ? "\(station.bitrate)k" : ""
-        let infoLabel = NSTextField(labelWithString: info)
+        // Right side: bitrate + listener count (e.g. "128k · 5.8K"). Genre is
+        // dropped — it's redundant with the genre you picked, and width is tight.
+        var parts: [String] = []
+        if station.bitrate > 0 { parts.append("\(station.bitrate)k") }
+        parts.append(station.listenersDisplay)
+        let infoLabel = NSTextField(labelWithString: parts.joined(separator: " · "))
         infoLabel.font = font
         infoLabel.textColor = isCurrent ? currentColor : secondaryColor
         infoLabel.isBezeled = false
@@ -1080,8 +1118,7 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
         cell.addSubview(infoLabel)
 
         let nameX = numWidth + 4
-        let title = station.genre.isEmpty ? station.name : "\(station.name)  —  \(station.genre)"
-        let nameLabel = NSTextField(labelWithString: title)
+        let nameLabel = NSTextField(labelWithString: station.name)
         nameLabel.font = font
         nameLabel.textColor = isCurrent ? currentColor : normalColor
         nameLabel.isBezeled = false
@@ -1090,6 +1127,39 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
         nameLabel.frame = NSRect(x: nameX, y: yOffset, width: cellW - nameX - infoW - rightMargin - 4, height: textH)
         cell.addSubview(nameLabel)
 
+        return cell
+    }
+
+    /// Single non-interactive row shown when the station list is empty — guides
+    /// the user to pick a genre, reflects an in-progress/failed load, or reports
+    /// no search matches. This is the "<empty>" state for the radio list.
+    private func radioPlaceholderCell(column: NSTableColumn?) -> NSView? {
+        let rowH: CGFloat = tableView.rowHeight
+        let cellW = column?.width ?? 200
+        let cell = NSView(frame: NSRect(x: 0, y: 0, width: cellW, height: rowH))
+
+        let skinned = WinampTheme.skinIsActive
+        let font: NSFont = skinned
+            ? (NSFont(name: WinampTheme.provider.playlistStyle.font, size: 7) ?? NSFont.systemFont(ofSize: 7))
+            : WinampTheme.playlistFont
+        let textH = font.boundingRectForFont.height
+
+        let q = radioManager?.searchQuery ?? ""
+        let text: String
+        if !q.isEmpty {
+            text = "No stations match \u{201C}\(q)\u{201D}"
+        } else {
+            text = radioManager?.statusMessage ?? "Pick a genre to browse"
+        }
+
+        let label = NSTextField(labelWithString: text)
+        label.font = font
+        label.textColor = skinned ? WinampTheme.provider.playlistStyle.normal : WinampTheme.greenSecondary
+        label.isBezeled = false
+        label.drawsBackground = false
+        label.lineBreakMode = .byTruncatingTail
+        label.frame = NSRect(x: 4, y: round((rowH - textH) / 2), width: cellW - 8, height: textH)
+        cell.addSubview(label)
         return cell
     }
 
@@ -1231,10 +1301,28 @@ final class AlwaysVisibleScrollView: NSScrollView {
 extension PlaylistView: NSTextFieldDelegate {
     func controlTextDidChange(_ obj: Notification) {
         if mode == .radio {
+            // Typing filters the currently loaded stations in place (no network).
             radioManager?.searchQuery = searchField.stringValue
         } else {
             playlistManager?.searchQuery = searchField.stringValue
         }
         tableView.reloadData()
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        // In radio mode, Enter escalates from local filter to a directory-wide
+        // search across all of SHOUTcast.
+        if commandSelector == #selector(NSResponder.insertNewline(_:)), mode == .radio {
+            submitRadioSearch()
+            return true
+        }
+        return false
+    }
+
+    private func submitRadioSearch() {
+        guard let rm = radioManager else { return }
+        let q = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return }
+        Task { @MainActor in await rm.search(q) }
     }
 }
