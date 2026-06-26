@@ -19,9 +19,15 @@ struct ShoutcastStation: Identifiable, Codable, Equatable {
 
     // MARK: - CodingKeys
 
+    /// Keys match the SHOUTcast directory JSON API (PascalCase).
     enum CodingKeys: String, CodingKey {
-        case id, name, genre, bitrate, listeners, format
-        case streamURL = "stream_url"
+        case id = "ID"
+        case name = "Name"
+        case genre = "Genre"
+        case bitrate = "Bitrate"
+        case listeners = "Listeners"
+        case format = "Format"
+        case streamURL = "StreamUrl"
     }
 
     // MARK: - Equatable

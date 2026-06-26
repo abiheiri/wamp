@@ -156,13 +156,13 @@ struct ShoutcastStationTests {
     @Test func decodeFromDirectoryJSON() throws {
         let json = """
         {
-            "id": 99514043,
-            "name": "Test Radio",
-            "genre": "Electronic",
-            "bitrate": 128,
-            "listeners": 42,
-            "format": "MP3",
-            "stream_url": "http://example.com:8000/stream"
+            "ID": 99514043,
+            "Name": "Test Radio",
+            "Genre": "Electronic",
+            "Bitrate": 128,
+            "Listeners": 42,
+            "Format": "MP3",
+            "StreamUrl": "http://example.com:8000/stream"
         }
         """
         let data = Data(json.utf8)
@@ -181,12 +181,12 @@ struct ShoutcastStationTests {
     @Test func decodeFromDirectoryJSON_missingStreamURL() throws {
         let json = """
         {
-            "id": 1,
-            "name": "No Stream",
-            "genre": "Rock",
-            "bitrate": 64,
-            "listeners": 0,
-            "format": "AAC"
+            "ID": 1,
+            "Name": "No Stream",
+            "Genre": "Rock",
+            "Bitrate": 64,
+            "Listeners": 0,
+            "Format": "AAC"
         }
         """
         let data = Data(json.utf8)
@@ -195,5 +195,48 @@ struct ShoutcastStationTests {
 
         #expect(station.id == 1)
         #expect(station.streamURL == nil)
+    }
+
+    @Test func decodeFromDirectoryJSON_nullStreamURL() throws {
+        let json = """
+        {
+            "ID": 99514043,
+            "Name": "Test Radio",
+            "Genre": "Electronic",
+            "Bitrate": 128,
+            "Listeners": 42,
+            "Format": "MP3",
+            "StreamUrl": null
+        }
+        """
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        let station = try decoder.decode(ShoutcastStation.self, from: data)
+
+        #expect(station.id == 99514043)
+        #expect(station.name == "Test Radio")
+        #expect(station.streamURL == nil)
+    }
+
+    @Test func decodeFromDirectoryJSON_extraFieldsIgnored() throws {
+        let json = """
+        {
+            "ID": 99514043,
+            "Name": "Test Radio",
+            "Genre": "Electronic",
+            "Bitrate": 128,
+            "Listeners": 42,
+            "Format": "MP3",
+            "StreamUrl": null,
+            "CurrentTrack": "Some Song",
+            "IsPlaying": false
+        }
+        """
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        let station = try decoder.decode(ShoutcastStation.self, from: data)
+
+        #expect(station.id == 99514043)
+        #expect(station.name == "Test Radio")
     }
 }
