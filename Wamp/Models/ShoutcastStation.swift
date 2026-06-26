@@ -1,0 +1,40 @@
+import Foundation
+
+/// A radio station discovered from the SHOUTcast directory.
+struct ShoutcastStation: Identifiable, Codable, Equatable {
+    /// Numeric station ID from the SHOUTcast Yellow Pages directory.
+    let id: Int
+    /// Station name (e.g. "ANTENNE BAYERN").
+    let name: String
+    /// Genre string (e.g. "Rock", "Electronic").
+    let genre: String
+    /// Stream bitrate in kbps.
+    let bitrate: Int
+    /// Current listener count (may be 0 if unavailable).
+    let listeners: Int
+    /// Audio format — "MP3" or "AAC".
+    let format: String
+    /// Resolved stream URL (may be nil if not yet resolved or unavailable).
+    let streamURL: URL?
+
+    // MARK: - CodingKeys
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, genre, bitrate, listeners, format
+        case streamURL = "stream_url"
+    }
+
+    // MARK: - Equatable
+
+    /// Stations are equal if they share the same directory ID.
+    static func == (lhs: ShoutcastStation, rhs: ShoutcastStation) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    // MARK: - Display
+
+    /// Human-readable string for UI display (e.g. "Cool Radio (192 kbps MP3)").
+    var displayString: String {
+        "\(name) (\(bitrate) kbps \(format))"
+    }
+}
