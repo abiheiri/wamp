@@ -79,6 +79,14 @@ class AudioEngine: ObservableObject {
     /// engine keeps playing into the chained segment without re-loading.
     private var pendingChain: (startFrame: AVAudioFramePosition, endFrame: AVAudioFramePosition)?
 
+    // MARK: - Streaming State
+
+    private var streamParser: ShoutcastStreamParser?
+    private var streamConverter: AVAudioConverter?
+    private var streamSourceNode: AVAudioPlayerNode?
+    private var streamOutputFormat: AVAudioFormat?
+    private var isStreaming = false
+
     private var effectiveVolume: Float {
         // Preamp is folded in so volume/mute changes don't silently wipe it.
         (isMuted ? 0 : volume) * pow(10, preampGain / 20)
@@ -268,6 +276,7 @@ class AudioEngine: ObservableObject {
         currentSegmentStartFrame = 0
         currentSegmentEndFrame = 0
         stopTimeUpdates()
+        stopStream()
     }
 
     func togglePlayPause() {
@@ -289,6 +298,143 @@ class AudioEngine: ObservableObject {
         } else {
             currentTime = time
         }
+    }
+
+    // MARK: - Streaming
+
+    /// Begin streaming audio from a SHOUTcast/ICEcast URL.
+    /// Routes audio through the full DSP chain (EQ → mixer → output).
+    func playStream(url streamURL: URL) {
+        stop()
+        stopStream()
+        isStreaming = true
+
+        // Create and attach a dedicated node for streaming
+        let streamNode = AVAudioPlayerNode()
+        engine.attach(streamNode)
+        engine.connect(streamNode, to: eq, format: nil)
+        streamSourceNode = streamNode
+
+        streamOutputFormat = AVAudioFormat(
+            standardFormatWithSampleRate: 44100,
+            channels: 2
+        )
+
+        // Start the engine if not running
+        if !engine.isRunning {
+            do { try engine.start() } catch {
+                print("🔴 AudioEngine: failed to start engine for stream: \(error)")
+                return
+            }
+        }
+        installSpectrumTap()
+
+        // Set up parser
+        let parser = ShoutcastStreamParser()
+        streamParser = parser
+
+        parser.onFormatReady = { [weak self] format in
+            guard let self, self.isStreaming else { return }
+            guard let outputFormat = self.streamOutputFormat else { return }
+
+            let converter = AVAudioConverter(from: format, to: outputFormat)
+            self.streamConverter = converter
+        }
+
+        parser.onPackets = { [weak self] packets in
+            guard let self, self.isStreaming,
+                  let converter = self.streamConverter,
+                  let outputFormat = self.streamOutputFormat,
+                  let streamNode = self.streamSourceNode else { return }
+
+            for packet in packets {
+                let inputFormat = converter.inputFormat
+
+                // Create compressed input buffer
+                let packetSize = packet.data.count
+                let inputBuffer = AVAudioCompressedBuffer(
+                    format: inputFormat,
+                    packetCapacity: 1,
+                    maximumPacketSize: packetSize
+                )
+
+                inputBuffer.data.copyMemory(from: (packet.data as NSData).bytes, byteCount: packetSize)
+                inputBuffer.packetCount = 1
+                if let desc = packet.packetDescription {
+                    inputBuffer.packetDescriptions?.pointee = desc
+                }
+
+                // Convert to PCM
+                let frameCapacity: AVAudioFrameCount = 1152 // MP3 frame default
+                guard let outputBuffer = AVAudioPCMBuffer(
+                    pcmFormat: outputFormat,
+                    frameCapacity: frameCapacity
+                ) else { continue }
+
+                var conversionError: NSError?
+                let status = converter.convert(to: outputBuffer, error: &conversionError) { _, status in
+                    status.pointee = .haveData
+                    return inputBuffer
+                }
+
+                if status == .error || conversionError != nil {
+                    continue
+                }
+
+                // Schedule into the player node
+                streamNode.scheduleBuffer(outputBuffer, completionHandler: nil)
+
+                // Start the node on first buffer
+                if !streamNode.isPlaying {
+                    streamNode.play()
+                    DispatchQueue.main.async { [weak self] in
+                        self?.isPlaying = true
+                        self?.playState = .playing
+                        self?.duration = 0 // live stream — no fixed duration
+                    }
+                }
+            }
+        }
+
+        parser.onMetadata = { [weak self] metadata in
+            guard self?.isStreaming == true else { return }
+            if !metadata.streamTitle.isEmpty {
+                print("🎵 Now Playing: \(metadata.streamTitle)")
+            }
+        }
+
+        parser.onError = { [weak self] error in
+            print("🔴 AudioEngine: stream error: \(error)")
+            DispatchQueue.main.async {
+                self?.handleStreamError()
+            }
+        }
+
+        currentTime = 0
+        duration = 0
+        parser.start(url: streamURL)
+    }
+
+    /// Stop the active stream and clean up streaming resources.
+    func stopStream() {
+        isStreaming = false
+        streamParser?.stop()
+        streamParser = nil
+        streamConverter = nil
+
+        if let node = streamSourceNode {
+            node.stop()
+            engine.detach(node)
+            streamSourceNode = nil
+        }
+        streamOutputFormat = nil
+    }
+
+    private func handleStreamError() {
+        guard isStreaming else { return }
+        isPlaying = false
+        playState = .stopped
+        stopStream()
     }
 
     // MARK: - EQ

@@ -40,15 +40,15 @@ final class ShoutcastDirectoryClient: ShoutcastDirectoryAPI {
     /// Fetch stations for a given genre name (e.g. "Rock", "Jazz").
     func browseByGenre(_ genre: String) async throws -> [ShoutcastStation] {
         let url = baseURL.appendingPathComponent("Home/BrowseByGenre")
-        var request = Self.formPOST(url: url, body: "genrename=\(genre)")
-        return try await performRequest(&request)
+        let request = Self.formPOST(url: url, body: "genrename=\(genre)")
+        return try await performRequest(request)
     }
 
     /// Search stations by query string.
     func search(_ query: String) async throws -> [ShoutcastStation] {
         let url = baseURL.appendingPathComponent("Search/UpdateSearch")
-        var request = Self.formPOST(url: url, body: "query=\(query)")
-        return try await performRequest(&request)
+        let request = Self.formPOST(url: url, body: "query=\(query)")
+        return try await performRequest(request)
     }
 
     /// Resolve the actual stream URL for a station ID.
@@ -73,7 +73,7 @@ final class ShoutcastDirectoryClient: ShoutcastDirectoryAPI {
 
     // MARK: - Private
 
-    private func performRequest(_ request: inout URLRequest) async throws -> [ShoutcastStation] {
+    private func performRequest(_ request: URLRequest) async throws -> [ShoutcastStation] {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
