@@ -348,17 +348,24 @@ class AudioEngine: ObservableObject {
                   let streamNode = self.streamSourceNode else { return }
 
             for packet in packets {
-                let inputFormat = converter.inputFormat
-
-                // Create compressed input buffer
                 let packetSize = packet.data.count
+
+                // Create compressed input buffer and copy audio data into its mData area.
                 let inputBuffer = AVAudioCompressedBuffer(
-                    format: inputFormat,
+                    format: converter.inputFormat,
                     packetCapacity: 1,
                     maximumPacketSize: packetSize
                 )
 
-                inputBuffer.data.copyMemory(from: (packet.data as NSData).bytes, byteCount: packetSize)
+                let bufferList = UnsafeMutableAudioBufferListPointer(
+                    inputBuffer.data.assumingMemoryBound(to: AudioBufferList.self)
+                )
+                guard bufferList.count > 0 else { continue }
+                var audioBuffer = bufferList[0]
+                guard let mData = audioBuffer.mData else { continue }
+
+                (packet.data as NSData).getBytes(mData, length: packetSize)
+                audioBuffer.mDataByteSize = UInt32(packetSize)
                 inputBuffer.packetCount = 1
                 if let desc = packet.packetDescription {
                     inputBuffer.packetDescriptions?.pointee = desc
@@ -371,10 +378,19 @@ class AudioEngine: ObservableObject {
                     frameCapacity: frameCapacity
                 ) else { continue }
 
+                // Provide the single input packet exactly once.
+                var packetProvided = false
+
                 var conversionError: NSError?
                 let status = converter.convert(to: outputBuffer, error: &conversionError) { _, status in
-                    status.pointee = .haveData
-                    return inputBuffer
+                    if !packetProvided {
+                        packetProvided = true
+                        status.pointee = .haveData
+                        return inputBuffer
+                    } else {
+                        status.pointee = .noDataNow
+                        return nil
+                    }
                 }
 
                 if status == .error || conversionError != nil {
