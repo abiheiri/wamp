@@ -101,6 +101,11 @@ class AudioEngine: ObservableObject {
     private var audioSampleRate: Double = 44100
     private var audioLengthFrames: AVAudioFramePosition = 0
     private var timeUpdateTimer: Timer?
+    /// Cached FFT setup for the spectrum analyzer, reused across audio buffers
+    /// instead of being rebuilt each callback. Rebuilt only if the analysis size
+    /// (`fftSetupLog2n`) changes, so results stay correct.
+    private var fftSetup: FFTSetup?
+    private var fftSetupLog2n: vDSP_Length = 0
     private var needsScheduling = true
     private var playbackGeneration: UInt64 = 0
     /// Upper frame bound of the segment currently scheduled. Matches
@@ -313,6 +318,7 @@ class AudioEngine: ObservableObject {
         isPlaying = false
         playState = .paused
         stopTimeUpdates()
+        removeSpectrumTap()
     }
 
     func stop() {
@@ -327,6 +333,7 @@ class AudioEngine: ObservableObject {
         currentSegmentStartFrame = 0
         currentSegmentEndFrame = 0
         stopTimeUpdates()
+        removeSpectrumTap()
         stopStream()
         streamPhase = .idle
     }
@@ -727,6 +734,13 @@ class AudioEngine: ObservableObject {
         }
     }
 
+    /// Stops the analyzer when audio isn't playing: removes the tap (so no FFT
+    /// runs on silence) and flattens the bars. Re-installed by the play paths.
+    private func removeSpectrumTap() {
+        engine.mainMixerNode.removeTap(onBus: 0)
+        spectrumData = Array(repeating: 0, count: 32)
+    }
+
     private func processSpectrumData(buffer: AVAudioPCMBuffer) {
         guard let channelData = buffer.floatChannelData?[0] else { return }
         let frameCount = Int(buffer.frameLength)
@@ -740,8 +754,14 @@ class AudioEngine: ObservableObject {
         // 32-bin output the mapping loop would form an empty range and trap.
         guard halfSize >= 32 else { return }
 
-        guard let fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return }
-        defer { vDSP_destroy_fftsetup(fftSetup) }
+        // Build the FFT setup once and reuse it; rebuild only if the analysis
+        // size changes (it doesn't, for a fixed format). The setup is freed in deinit.
+        if fftSetup == nil || fftSetupLog2n != log2n {
+            if let old = fftSetup { vDSP_destroy_fftsetup(old) }
+            fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))
+            fftSetupLog2n = log2n
+        }
+        guard let fftSetup = fftSetup else { return }
 
         // Apply Hann window
         var windowed = [Float](repeating: 0, count: fftSize)
@@ -788,5 +808,6 @@ class AudioEngine: ObservableObject {
     deinit {
         engine.mainMixerNode.removeTap(onBus: 0)
         engine.stop()
+        if let fftSetup { vDSP_destroy_fftsetup(fftSetup) }
     }
 }
