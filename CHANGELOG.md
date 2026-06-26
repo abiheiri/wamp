@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-06-26
+
+### Fixed
+
+- **High idle CPU usage.** After playback stopped, the spectrum analyzer
+  kept running its FFT on silence (the audio tap was never removed), and
+  the LCD marquee redrew at 30fps even when its text wasn't scrolling.
+  Both now go quiet when nothing is playing, dropping idle CPU sharply.
+- **Spectrum analyzer rebuilt its FFT setup on every audio buffer.** It is
+  now created once and reused while playing (rebuilt only if the analysis
+  size changes), trimming CPU during playback. The bars are unchanged.
+
 ## [1.2.0] - 2026-06-26
 
 ### Added
