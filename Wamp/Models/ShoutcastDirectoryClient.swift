@@ -54,7 +54,7 @@ final class ShoutcastDirectoryClient: ShoutcastDirectoryAPI {
     /// Resolve the actual stream URL for a station ID.
     func getStreamURL(for stationID: Int) async throws -> URL {
         let url = baseURL.appendingPathComponent("Player/GetStreamUrl")
-        var request = Self.formPOST(url: url, body: "station=\(stationID)")
+        let request = Self.formPOST(url: url, body: "station=\(stationID)")
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
