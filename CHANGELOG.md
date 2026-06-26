@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **SHOUTcast internet radio, merged into the playlist panel.** A
+  `PLAYLIST | RADIO` tab in the playlist lets you browse stations by
+  genre or search and play them through the full audio pipeline
+  (10-band EQ, volume, balance) — the local playlist stays separate.
+  Playback is driven entirely by the main transport buttons: play/stop
+  control the stream, and next/previous step through the station list.
+  The LCD marquee shows the live ICY "now playing" title. (The standalone
+  SHOUTcast Radio window has been removed in favour of this.)
+
 - **Mini-transport buttons in the skinned playlist are now interactive.**
   The five baked buttons (prev / play / pause / stop / next) in
   pledit.bmp's bottom-right corner now respond to clicks and route

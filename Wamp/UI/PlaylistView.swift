@@ -23,6 +23,16 @@ class PlaylistView: NSView {
     private var lastColumnWidth: CGFloat = 0
     private var dragOrigin: NSPoint?
 
+    // Radio (SHOUTcast) tab — built-in look only; the tab strip hides when a
+    // .wsz skin is active (the skinned pledit frame has no room for it).
+    private weak var radioManager: RadioManager?
+    private enum PanelMode { case playlist, radio }
+    private var mode: PanelMode = .playlist
+    private let playlistTab = WinampButton(title: "PLAYLIST", style: .toggle)
+    private let radioTab = WinampButton(title: "RADIO", style: .toggle)
+    private let genrePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let radioLoadButton = WinampButton(title: "LOAD", style: .action)
+
     // Set by MainWindow.bindToModels / AppDelegate. Baked into pledit.bmp's
     // BR corner; mirrors classic Winamp's playlist-local transport row.
     var onMiniPrev:  (() -> Void)?
@@ -135,6 +145,8 @@ class PlaylistView: NSView {
         infoLabel.alignment = .center
         addSubview(infoLabel)
 
+        setupRadioControls()
+
         skinObserver = SkinManager.shared.$currentSkin
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -143,6 +155,92 @@ class PlaylistView: NSView {
                 self?.needsDisplay = true
             }
         applySkinVisibility()
+    }
+
+    // MARK: - Radio tab
+
+    private func setupRadioControls() {
+        playlistTab.isActive = true
+        playlistTab.onClick = { [weak self] in self?.setMode(.playlist) }
+        radioTab.isActive = false
+        radioTab.onClick = { [weak self] in self?.setMode(.radio) }
+        addSubview(playlistTab)
+        addSubview(radioTab)
+
+        genrePopup.addItems(withTitles: RadioManager.popularGenres)
+        genrePopup.selectItem(withTitle: "Rock")
+        genrePopup.font = WinampTheme.bitrateFont
+        genrePopup.controlSize = .mini
+        genrePopup.isHidden = true
+        addSubview(genrePopup)
+
+        radioLoadButton.onClick = { [weak self] in self?.loadSelectedGenre() }
+        radioLoadButton.isHidden = true
+        addSubview(radioLoadButton)
+    }
+
+    private func setMode(_ newMode: PanelMode) {
+        mode = newMode
+        let radio = (newMode == .radio) && !WinampTheme.skinIsActive
+        playlistTab.isActive = !(newMode == .radio)
+        radioTab.isActive = (newMode == .radio)
+        genrePopup.isHidden = !radio
+        radioLoadButton.isHidden = !radio
+        searchField.placeholderString = (newMode == .radio) ? "Search stations..." : "Search playlist..."
+        // Show the active list's own query in the shared search field.
+        searchField.stringValue = (newMode == .radio)
+            ? (radioManager?.searchQuery ?? "")
+            : (playlistManager?.searchQuery ?? "")
+        tableView.reloadData()
+        if newMode == .radio { highlightCurrentStation() }
+        needsLayout = true
+        needsDisplay = true
+    }
+
+    private func loadSelectedGenre() {
+        guard let genre = genrePopup.titleOfSelectedItem, let rm = radioManager else { return }
+        Task { @MainActor in await rm.loadGenre(genre) }
+    }
+
+    /// Genre picker for skinned mode (no native popup) — reuses the same NSMenu
+    /// approach the skinned ADD/REM/SEL/MISC buttons use.
+    private func showGenreMenu() {
+        let menu = NSMenu()
+        for genre in RadioManager.popularGenres {
+            let it = NSMenuItem(title: genre, action: #selector(genreMenuPick(_:)), keyEquivalent: "")
+            it.target = self
+            menu.addItem(it)
+        }
+        let r = skinnedRadioTabRect()
+        menu.popUp(positioning: nil, at: NSPoint(x: r.minX, y: r.minY), in: self)
+    }
+
+    @objc private func genreMenuPick(_ sender: NSMenuItem) {
+        guard let rm = radioManager else { return }
+        let genre = sender.title
+        Task { @MainActor in await rm.loadGenre(genre) }
+    }
+
+    // Skinned PLAYLIST | RADIO tab strip geometry (built once, used by both
+    // drawSkinnedTabStrip and mouseDown hit-testing so they never diverge).
+    static let skinnedTabStripH: CGFloat = 11
+    private func skinnedTabStripY() -> CGFloat { bounds.height - 20 - Self.skinnedTabStripH }
+    private func skinnedPlaylistTabRect() -> NSRect {
+        NSRect(x: 16, y: skinnedTabStripY(),
+               width: TextSpriteRenderer.width(of: "PLAYLIST"), height: Self.skinnedTabStripH)
+    }
+    private func skinnedRadioTabRect() -> NSRect {
+        let plRight = skinnedPlaylistTabRect().maxX
+        return NSRect(x: plRight + 12, y: skinnedTabStripY(),
+                      width: TextSpriteRenderer.width(of: "RADIO"), height: Self.skinnedTabStripH)
+    }
+
+    private func highlightCurrentStation() {
+        guard let rm = radioManager, let id = rm.currentStationID else { return }
+        if let row = rm.filteredStations.firstIndex(where: { $0.id == id }) {
+            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            tableView.scrollRowToVisible(row)
+        }
     }
 
     /// Hides controls baked into pledit.bmp and controls that don't exist in
@@ -160,6 +258,17 @@ class PlaylistView: NSView {
         selButton.isHidden = active
         miscButton.isHidden = active
         listOptsButton.isHidden = active
+        // The Radio tab strip has no skinned equivalent — hide it under a skin
+        // and fall back to the playlist list so the user isn't stranded.
+        playlistTab.isHidden = active
+        radioTab.isHidden = active
+        if active && mode == .radio {
+            setMode(.playlist)
+        } else {
+            let radioVisible = !active && mode == .radio
+            genrePopup.isHidden = !radioVisible
+            radioLoadButton.isHidden = !radioVisible
+        }
         // Classic Winamp playlist rows are tight — text.bmp glyphs are 6 px tall.
         tableView.rowHeight = active ? 13 : 18
         tableView.backgroundColor = active ? WinampTheme.provider.playlistStyle.normalBG : .black
@@ -258,6 +367,31 @@ class PlaylistView: NSView {
             let textY: CGFloat = 38 - 10 - TextSpriteRenderer.glyphHeight
             TextSpriteRenderer.draw(info, at: NSPoint(x: textX, y: textY), sheet: textSheet)
         }
+
+        drawSkinnedTabStrip(width: w, height: h)
+    }
+
+    /// PLAYLIST | RADIO tabs rendered with text.bmp in a thin strip just below
+    /// the skinned title bar. The active tab gets an underline in the skin's
+    /// "current" color (text.bmp glyphs can't be recolored).
+    private func drawSkinnedTabStrip(width w: CGFloat, height h: CGFloat) {
+        guard let textSheet = WinampTheme.provider.textSheet else { return }
+        let style = WinampTheme.provider.playlistStyle
+        let stripY = skinnedTabStripY()
+
+        // Background band between the side tiles so the tabs read as chrome.
+        style.normalBG.setFill()
+        NSRect(x: 12, y: stripY, width: w - 32, height: Self.skinnedTabStripH).fill()
+
+        let glyphY = round(stripY + (Self.skinnedTabStripH - TextSpriteRenderer.glyphHeight) / 2)
+        let plRect = skinnedPlaylistTabRect()
+        let raRect = skinnedRadioTabRect()
+        TextSpriteRenderer.draw("PLAYLIST", at: NSPoint(x: plRect.minX, y: glyphY), sheet: textSheet)
+        TextSpriteRenderer.draw("RADIO", at: NSPoint(x: raRect.minX, y: glyphY), sheet: textSheet)
+
+        style.current.setFill()
+        let active = (mode == .radio) ? raRect : plRect
+        NSRect(x: active.minX, y: glyphY - 2, width: active.width, height: 1).fill()
     }
 
     override func layout() {
@@ -280,12 +414,14 @@ class PlaylistView: NSView {
         let leftW: CGFloat = 12
         let rightW: CGFloat = 20
 
+        // The PLAYLIST | RADIO tab strip occupies a thin band under the title bar.
+        let tabH = Self.skinnedTabStripH
         titleBar.frame = NSRect(x: 0, y: h - topH, width: w, height: topH)
         scrollView.frame = NSRect(
             x: leftW,
             y: bottomH,
             width: w - leftW - rightW,
-            height: h - topH - bottomH
+            height: h - topH - tabH - bottomH
         )
 
         // Hidden in skinned mode — collapse frames so they don't intercept hits.
@@ -296,6 +432,10 @@ class PlaylistView: NSView {
         miscButton.frame = .zero
         listOptsButton.frame = .zero
         infoLabel.frame = .zero
+        playlistTab.frame = .zero
+        radioTab.frame = .zero
+        genrePopup.frame = .zero
+        radioLoadButton.frame = .zero
 
         // Native scroller is hidden in skinned mode — full column width.
         let newWidth = scrollView.frame.width - 2
@@ -306,8 +446,8 @@ class PlaylistView: NSView {
         }
 
         // Skin scroll thumb sits in the right-tile area, centered horizontally
-        // within the 20px tile. Track height matches the right-tile vertical span.
-        let trackTop = h - topH
+        // within the 20px tile. Track top is below the tab strip.
+        let trackTop = h - topH - tabH
         let trackBottom = bottomH
         let trackH = max(0, trackTop - trackBottom)
         skinScroller.frame = NSRect(x: w - 20 + 6, y: trackBottom, width: 8, height: trackH)
@@ -342,11 +482,27 @@ class PlaylistView: NSView {
         let infoY = round((bottomBarH - infoTextH) / 2)
         infoLabel.frame = NSRect(x: w - pad - listOptsW - 4 - infoW, y: infoY, width: infoW, height: infoTextH)
 
+        // Tab strip directly under the title bar (PLAYLIST | RADIO + radio
+        // controls). Only the TOP of the list shrinks to make room — the bottom
+        // bar (ADD/REM/SEL/MISC + time display) is never touched.
+        let tabStripH: CGFloat = 15
+        let stripY = bounds.height - WinampTheme.titleBarHeight - tabStripH
+        let tabW: CGFloat = 46
+        let tabH = tabStripH - 1
+        playlistTab.frame = NSRect(x: pad, y: stripY, width: tabW, height: tabH)
+        radioTab.frame = NSRect(x: pad + tabW + 1, y: stripY, width: tabW, height: tabH)
+
+        // Radio-only controls live on the right of the strip.
+        let loadW: CGFloat = 34
+        let popupW: CGFloat = 88
+        radioLoadButton.frame = NSRect(x: w - pad - loadW, y: stripY, width: loadW, height: tabH)
+        genrePopup.frame = NSRect(x: w - pad - loadW - 2 - popupW, y: stripY - 1, width: popupW, height: tabH + 2)
+
         // Search
         searchField.frame = NSRect(x: pad, y: bottomBarH, width: w - 2 * pad, height: searchH)
 
-        // Scroll view
-        let scrollTop = bounds.height - WinampTheme.titleBarHeight
+        // Scroll view — top now sits below the tab strip.
+        let scrollTop = stripY
         let scrollH = scrollTop - bottomBarH - searchH - 2
         scrollView.frame = NSRect(x: pad, y: bottomBarH + searchH + 1, width: w - 2 * pad, height: scrollH)
 
@@ -363,8 +519,26 @@ class PlaylistView: NSView {
         }
     }
 
-    func bindToModel(playlistManager: PlaylistManager) {
+    func bindToModel(playlistManager: PlaylistManager, radioManager: RadioManager) {
         self.playlistManager = playlistManager
+        self.radioManager = radioManager
+
+        radioManager.$stations
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.mode == .radio else { return }
+                self.tableView.reloadData()
+            }
+            .store(in: &cancellables)
+
+        radioManager.$currentStationID
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.mode == .radio else { return }
+                self.tableView.reloadData()
+                self.highlightCurrentStation()
+            }
+            .store(in: &cancellables)
 
         playlistManager.$tracks
             .receive(on: DispatchQueue.main)
@@ -380,7 +554,7 @@ class PlaylistView: NSView {
         playlistManager.$currentIndex
             .receive(on: DispatchQueue.main)
             .sink { [weak self] index in
-                guard let self, let pm = self.playlistManager else { return }
+                guard let self, self.mode == .playlist, let pm = self.playlistManager else { return }
                 self.tableView.reloadData()
                 if index >= 0, index < pm.tracks.count {
                     let currentTrack = pm.tracks[index]
@@ -412,6 +586,14 @@ class PlaylistView: NSView {
     }
 
     private func playRow(_ row: Int) {
+        if mode == .radio {
+            guard let rm = radioManager else { return }
+            let list = rm.filteredStations
+            guard row < list.count else { return }
+            let station = list[row]
+            Task { @MainActor in await rm.playStation(station) }
+            return
+        }
         let tracks = displayedTracks
         guard row < tracks.count else { return }
         if let realIndex = playlistManager?.tracks.firstIndex(where: { $0.id == tracks[row].id }) {
@@ -420,6 +602,7 @@ class PlaylistView: NSView {
     }
 
     private func removeSelected() {
+        guard mode == .playlist else { return }
         let tracks = displayedTracks
         let realIndices = tableView.selectedRowIndexes.compactMap { row -> Int? in
             guard row < tracks.count else { return nil }
@@ -584,6 +767,7 @@ class PlaylistView: NSView {
     /// Build a right-click context menu for a playlist row. Returns nil if no
     /// row-specific actions apply (letting the table fall back to its default menu).
     private func contextMenu(for row: Int) -> NSMenu? {
+        guard mode == .playlist else { return nil }
         // Table rows show displayedTracks (search-filtered) — indexing the
         // unfiltered model here would target the wrong track while filtering.
         let tracks = displayedTracks
@@ -709,6 +893,15 @@ class PlaylistView: NSView {
             return
         }
 
+        // PLAYLIST | RADIO tab strip directly under the title bar. Clicking RADIO
+        // switches to it and opens the genre menu (the skinned frame has no popup).
+        if skinnedPlaylistTabRect().contains(point) { setMode(.playlist); return }
+        if skinnedRadioTabRect().contains(point) {
+            setMode(.radio)
+            showGenreMenu()
+            return
+        }
+
         // Bottom button strip — baked pledit.bmp sprites for ADD/REM/SEL/MISC
         // on the left, LIST OPTS + mini-transport on the right.
         if point.y < 38 {
@@ -770,10 +963,12 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        displayedTracks.count
+        if mode == .radio { return radioManager?.filteredStations.count ?? 0 }
+        return displayedTracks.count
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        if mode == .radio { return stationCell(for: row, column: tableColumn) }
         let tracks = displayedTracks
         guard row < tracks.count else { return nil }
         let track = tracks[row]
@@ -836,6 +1031,68 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
         return cell
     }
 
+    /// Renders a SHOUTcast station row in Radio mode: "N. Station — Genre" with a
+    /// right-aligned bitrate, styled like a playlist row (built-in look only).
+    private func stationCell(for row: Int, column: NSTableColumn?) -> NSView? {
+        guard let rm = radioManager else { return nil }
+        let list = rm.filteredStations
+        guard row < list.count else { return nil }
+        let station = list[row]
+        let isCurrent = rm.currentStationID == station.id
+
+        let rowH: CGFloat = tableView.rowHeight
+        let cellW = column?.width ?? 200
+        let cell = NSView(frame: NSRect(x: 0, y: 0, width: cellW, height: rowH))
+        cell.autoresizesSubviews = true
+
+        let skinned = WinampTheme.skinIsActive
+        let style = WinampTheme.provider.playlistStyle
+        let font: NSFont = skinned
+            ? (NSFont(name: style.font, size: 7) ?? NSFont.systemFont(ofSize: 7))
+            : WinampTheme.playlistFont
+        let textH = font.boundingRectForFont.height
+        let yOffset = round((rowH - textH) / 2)
+
+        let normalColor = skinned ? style.normal : WinampTheme.greenBright
+        let currentColor = skinned ? style.current : WinampTheme.white
+        let secondaryColor = skinned ? style.normal : WinampTheme.greenSecondary
+
+        let numLabel = NSTextField(labelWithString: "\(row + 1).")
+        numLabel.font = font
+        numLabel.textColor = isCurrent ? currentColor : secondaryColor
+        numLabel.isBezeled = false
+        numLabel.drawsBackground = false
+        numLabel.sizeToFit()
+        let numWidth = numLabel.frame.width
+        numLabel.frame = NSRect(x: 0, y: yOffset, width: numWidth, height: textH)
+        cell.addSubview(numLabel)
+
+        let info = station.bitrate > 0 ? "\(station.bitrate)k" : ""
+        let infoLabel = NSTextField(labelWithString: info)
+        infoLabel.font = font
+        infoLabel.textColor = isCurrent ? currentColor : secondaryColor
+        infoLabel.isBezeled = false
+        infoLabel.drawsBackground = false
+        infoLabel.sizeToFit()
+        let infoW = infoLabel.frame.width + 3
+        let rightMargin: CGFloat = 1
+        infoLabel.frame = NSRect(x: cellW - infoW - rightMargin, y: yOffset, width: infoW, height: textH)
+        cell.addSubview(infoLabel)
+
+        let nameX = numWidth + 4
+        let title = station.genre.isEmpty ? station.name : "\(station.name)  —  \(station.genre)"
+        let nameLabel = NSTextField(labelWithString: title)
+        nameLabel.font = font
+        nameLabel.textColor = isCurrent ? currentColor : normalColor
+        nameLabel.isBezeled = false
+        nameLabel.drawsBackground = false
+        nameLabel.lineBreakMode = .byTruncatingTail
+        nameLabel.frame = NSRect(x: nameX, y: yOffset, width: cellW - nameX - infoW - rightMargin - 4, height: textH)
+        cell.addSubview(nameLabel)
+
+        return cell
+    }
+
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         let rowView = WinampRowView()
         return rowView
@@ -843,8 +1100,8 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
 
     // MARK: - Internal Drag & Drop Reordering
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
-        // Disable reordering while search is active
-        guard playlistManager?.searchQuery.isEmpty == true else { return nil }
+        // No row reordering for the radio list, or while a search filter is active.
+        guard mode == .playlist, playlistManager?.searchQuery.isEmpty == true else { return nil }
         let item = NSPasteboardItem()
         item.setString(String(row), forType: PlaylistView.internalRowType)
         return item
@@ -973,7 +1230,11 @@ final class AlwaysVisibleScrollView: NSScrollView {
 // MARK: - Search
 extension PlaylistView: NSTextFieldDelegate {
     func controlTextDidChange(_ obj: Notification) {
-        playlistManager?.searchQuery = searchField.stringValue
+        if mode == .radio {
+            radioManager?.searchQuery = searchField.stringValue
+        } else {
+            playlistManager?.searchQuery = searchField.stringValue
+        }
         tableView.reloadData()
     }
 }

@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Wamp",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/Build/Products/Debug/Wamp.app/Contents/MacOS/Wamp",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build Wamp"
+    }
+  ]
+}

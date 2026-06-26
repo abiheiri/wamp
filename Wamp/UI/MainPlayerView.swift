@@ -60,6 +60,7 @@ class MainPlayerView: NSView {
     private var skinObserver: AnyCancellable?
     private weak var audioEngine: AudioEngine?
     private weak var playlistManager: PlaylistManager?
+    private weak var radioManager: RadioManager?
 
     // Window dragging state for skinned mode (titleBar is hidden)
     private var dragOrigin: NSPoint?
@@ -498,9 +499,10 @@ class MainPlayerView: NSView {
     }
 
     // MARK: - Binding
-    func bindToModels(audioEngine: AudioEngine, playlistManager: PlaylistManager) {
+    func bindToModels(audioEngine: AudioEngine, playlistManager: PlaylistManager, radioManager: RadioManager) {
         self.audioEngine = audioEngine
         self.playlistManager = playlistManager
+        self.radioManager = radioManager
 
         // Time
         audioEngine.$currentTime
@@ -512,6 +514,41 @@ class MainPlayerView: NSView {
         audioEngine.$spectrumData
             .receive(on: DispatchQueue.main)
             .sink { [weak self] data in self?.spectrumView.spectrumData = data }
+            .store(in: &cancellables)
+
+        // Stream info: the connecting/playing/failed phase, live ICY now-playing,
+        // and active-source flips all drive the persistent marquee.
+        Publishers.Merge3(
+            audioEngine.$streamPhase.map { _ in () },
+            audioEngine.$streamErrorText.map { _ in () },
+            audioEngine.$streamNowPlaying.map { _ in () }
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+            guard self?.audioEngine?.activeSource == .stream else { return }
+            self?.updateTrackInfo()
+            self?.needsDisplay = true
+        }
+        .store(in: &cancellables)
+
+        audioEngine.$activeSource
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateTrackInfo()
+                self?.needsDisplay = true
+            }
+            .store(in: &cancellables)
+
+        // Browse feedback (loading a genre, result counts) is transient — flash it
+        // over the LCD. Connecting/playing/errors are persistent (handled above).
+        // dropFirst skips the idle default shown at launch.
+        radioManager.$statusMessage
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] msg in
+                guard !msg.isEmpty else { return }
+                self?.lcdDisplay.showOverlay(msg, duration: 2.0)
+            }
             .store(in: &cancellables)
 
         // Track info
@@ -557,10 +594,22 @@ class MainPlayerView: NSView {
             audioEngine?.balance = value * 2 - 1 // convert 0..1 to -1..1
         }
 
-        // Transport
-        transportBar.onPrevious = { [weak playlistManager] in playlistManager?.playPrevious() }
+        // Transport — routes to the playlist or the radio list by active source.
+        transportBar.onPrevious = { [weak self] in
+            guard let self else { return }
+            if self.audioEngine?.activeSource == .stream {
+                Task { await self.radioManager?.playPrevious() }
+            } else {
+                self.playlistManager?.playPrevious()
+            }
+        }
         transportBar.onPlay = { [weak self] in
             guard let self, let engine = self.audioEngine else { return }
+            if engine.activeSource == .stream {
+                // Live stream: reconnect from a stop; nothing to do while playing.
+                if engine.playState != .playing { engine.replayCurrentStream() }
+                return
+            }
             if engine.playState == .stopped,
                let pm = self.playlistManager, pm.currentTrack != nil {
                 // playTrack honors CUE segment bounds (a bare loadAndPlay(url:)
@@ -572,7 +621,14 @@ class MainPlayerView: NSView {
         }
         transportBar.onPause = { [weak audioEngine] in audioEngine?.pause() }
         transportBar.onStop = { [weak audioEngine] in audioEngine?.stop() }
-        transportBar.onNext = { [weak playlistManager] in playlistManager?.playNext() }
+        transportBar.onNext = { [weak self] in
+            guard let self else { return }
+            if self.audioEngine?.activeSource == .stream {
+                Task { await self.radioManager?.playNext() }
+            } else {
+                self.playlistManager?.playNext()
+            }
+        }
         transportBar.onEject = { [weak self] in self?.showOpenFilePanel() }
 
         // Play state
@@ -601,6 +657,10 @@ class MainPlayerView: NSView {
     }
 
     private func updateTrackInfo() {
+        if audioEngine?.activeSource == .stream {
+            updateStreamInfo()
+            return
+        }
         guard let track = playlistManager?.currentTrack else {
             lcdDisplay.text = ""
             bitrateLabel.stringValue = ""
@@ -615,6 +675,33 @@ class MainPlayerView: NSView {
         sampleRateLabel.textColor = WinampTheme.greenBright
         stereoLabel.textColor = track.isStereo ? WinampTheme.greenBright : WinampTheme.greenDimText
         monoLabel.textColor = track.isStereo ? WinampTheme.greenDimText : WinampTheme.greenBright
+    }
+
+    /// Persistent marquee for the active SHOUTcast stream, driven by the stream
+    /// lifecycle: connecting → playing (live ICY title, or station name until
+    /// metadata arrives) → a friendly error line on failure.
+    private func updateStreamInfo() {
+        let station = radioManager?.currentStation
+        let name = station?.name ?? "SHOUTcast Stream"
+        switch audioEngine?.streamPhase ?? .idle {
+        case .connecting:
+            lcdDisplay.text = "Connecting to \(name)…"
+        case .playing:
+            let nowPlaying = audioEngine?.streamNowPlaying ?? ""
+            lcdDisplay.text = nowPlaying.isEmpty ? name : "\(name): \(nowPlaying)"
+        case .failed:
+            let detail = audioEngine?.streamErrorText ?? ""
+            lcdDisplay.text = detail.isEmpty ? "Couldn't play \(name)" : detail
+        case .idle:
+            lcdDisplay.text = name
+        }
+        let br = station?.bitrate ?? 0
+        bitrateLabel.stringValue = br > 0 ? "\(br)" : "---"
+        bitrateLabel.textColor = WinampTheme.greenBright
+        sampleRateLabel.stringValue = "--"
+        sampleRateLabel.textColor = WinampTheme.greenBright
+        stereoLabel.textColor = WinampTheme.greenBright
+        monoLabel.textColor = WinampTheme.greenDimText
     }
 
     private func showWindowMenu() {

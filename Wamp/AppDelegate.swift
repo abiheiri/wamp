@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 class AppDelegate: NSObject, NSApplicationDelegate {
     var audioEngine: AudioEngine!
     var playlistManager: PlaylistManager!
+    var radioManager: RadioManager!
     var stateManager: StateManager!
     var mainWindow: MainWindow!
     var statusItem: NSStatusItem!
@@ -26,9 +27,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         audioEngine = AudioEngine()
         playlistManager = PlaylistManager()
+        radioManager = RadioManager()
         stateManager = StateManager()
 
         playlistManager.setAudioEngine(audioEngine)
+        radioManager.setAudioEngine(audioEngine)
 
         // Restore state
         let appState = stateManager.loadAppState()
@@ -58,7 +61,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create window
         mainWindow = MainWindow()
-        mainWindow.bindToModels(audioEngine: audioEngine, playlistManager: playlistManager)
+        mainWindow.bindToModels(audioEngine: audioEngine, playlistManager: playlistManager, radioManager: radioManager)
         mainWindow.playlistView.onMiniEject = { [weak self] in self?.openFileAction() }
         mainWindow.showEqualizer = appState.showEqualizer
         mainWindow.showPlaylist = appState.showPlaylist
@@ -359,7 +362,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .applicationVersion: appVersion,
             .version: "",
             .credits: credits,
-            NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Valerii Bakalenko."
+            NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Valerii Bakalenko and AL Biheiri."
         ])
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -438,6 +441,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func togglePlayPause() {
+        // Streaming: a live stream can't pause, so toggle is stop ⇄ reconnect.
+        if audioEngine.activeSource == .stream {
+            if audioEngine.playState == .playing {
+                audioEngine.stop()
+            } else {
+                audioEngine.replayCurrentStream()
+            }
+            return
+        }
         if !audioEngine.isPlaying && audioEngine.currentTime == 0 && audioEngine.duration == 0,
            playlistManager.currentTrack != nil {
             // playTrack honors CUE segment bounds (a bare loadAndPlay(url:)
@@ -448,8 +460,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func stopAction() { audioEngine.stop() }
-    @objc private func nextAction() { playlistManager.playNext() }
-    @objc private func prevAction() { playlistManager.playPrevious() }
+    @objc private func nextAction() {
+        if audioEngine.activeSource == .stream {
+            Task { await radioManager.playNext() }
+        } else {
+            playlistManager.playNext()
+        }
+    }
+    @objc private func prevAction() {
+        if audioEngine.activeSource == .stream {
+            Task { await radioManager.playPrevious() }
+        } else {
+            playlistManager.playPrevious()
+        }
+    }
 
     @objc private func toggleRepeat() {
         let next = RepeatMode(rawValue: (audioEngine.repeatMode.rawValue + 1) % 3) ?? .off
@@ -563,6 +587,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem.menu = menu
     }
+
 
     // MARK: - Jump to File
     @objc func presentJumpToFileWindow() {

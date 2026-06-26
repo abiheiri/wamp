@@ -15,6 +15,22 @@ enum PlayState {
     case paused
 }
 
+/// What the transport controls currently act on: the local playlist or a
+/// SHOUTcast stream. The play/next/prev handlers consult this to route to the
+/// right manager.
+enum PlaybackSource {
+    case local
+    case stream
+}
+
+/// Lifecycle of the active SHOUTcast stream, surfaced in the player marquee.
+enum StreamPhase {
+    case idle
+    case connecting
+    case playing
+    case failed
+}
+
 extension Notification.Name {
     static let trackDidFinish = Notification.Name("trackDidFinish")
 }
@@ -36,7 +52,10 @@ class AudioEngine: ObservableObject {
         didSet { engine.mainMixerNode.outputVolume = effectiveVolume }
     }
     @Published var balance: Float = 0 {
-        didSet { playerNode.pan = balance }
+        didSet {
+            playerNode.pan = balance
+            streamSourceNode?.pan = balance
+        }
     }
     @Published var isMuted = false {
         didSet { engine.mainMixerNode.outputVolume = effectiveVolume }
@@ -48,6 +67,20 @@ class AudioEngine: ObservableObject {
     @Published var preampGain: Float = 0 // dB, -12 to +12
     @Published var spectrumData: [Float] = Array(repeating: 0, count: 32)
 
+    /// Whether the transport is driving the local playlist or a SHOUTcast stream.
+    @Published private(set) var activeSource: PlaybackSource = .local
+    /// Live ICY "now playing" text for the active stream (empty when not streaming
+    /// or before the first metadata block arrives).
+    @Published private(set) var streamNowPlaying: String = ""
+    /// Connecting → playing → failed lifecycle of the active stream.
+    @Published private(set) var streamPhase: StreamPhase = .idle
+    /// User-friendly reason shown when `streamPhase == .failed` (the raw technical
+    /// error stays in the console).
+    @Published private(set) var streamErrorText: String = ""
+    /// URL of the stream currently (or most recently) playing, so the play button
+    /// can reconnect after a stop without re-resolving through the directory.
+    private(set) var currentStreamURL: URL?
+
     // MARK: - EQ State
     @Published private(set) var eqBands: [Float] = Array(repeating: 0, count: 10) // dB per band
 
@@ -58,6 +91,10 @@ class AudioEngine: ObservableObject {
     // MARK: - Private
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
+    /// Mixes the local player and any stream node into the EQ's single input bus.
+    /// The EQ has only one input — connecting two sources straight to it displaces
+    /// the first; routing both through this mixer lets them coexist.
+    private let sourceMixer = AVAudioMixerNode()
     private let eq: AVAudioUnitEQ
     private var audioFile: AVAudioFile?
     private var seekFrame: AVAudioFramePosition = 0
@@ -79,6 +116,14 @@ class AudioEngine: ObservableObject {
     /// engine keeps playing into the chained segment without re-loading.
     private var pendingChain: (startFrame: AVAudioFramePosition, endFrame: AVAudioFramePosition)?
 
+    // MARK: - Streaming State
+
+    private var streamParser: ShoutcastStreamParser?
+    private var streamConverter: AVAudioConverter?
+    private var streamSourceNode: AVAudioPlayerNode?
+    private var streamOutputFormat: AVAudioFormat?
+    private var isStreaming = false
+
     private var effectiveVolume: Float {
         // Preamp is folded in so volume/mute changes don't silently wipe it.
         (isMuted ? 0 : volume) * pow(10, preampGain / 20)
@@ -93,8 +138,13 @@ class AudioEngine: ObservableObject {
 
     private func setupAudioChain() {
         engine.attach(playerNode)
+        engine.attach(sourceMixer)
         engine.attach(eq)
-        engine.connect(playerNode, to: eq, format: nil)
+        // playerNode → sourceMixer → eq → mainMixer. A stream node attaches to
+        // sourceMixer on its own bus, so the local player is never disconnected
+        // from the graph when switching to/from a stream.
+        engine.connect(playerNode, to: sourceMixer, format: nil)
+        engine.connect(sourceMixer, to: eq, format: nil)
         engine.connect(eq, to: engine.mainMixerNode, format: nil)
         engine.mainMixerNode.outputVolume = effectiveVolume
     }
@@ -120,27 +170,28 @@ class AudioEngine: ObservableObject {
         do {
             try loadFile(url: url)
         } catch {
-            print("🔴 AudioEngine: failed to load \(url.lastPathComponent): \(error)")
+            debugLog("🔴 AudioEngine: failed to load \(url.lastPathComponent): \(error)")
         }
     }
 
     func loadAndPlay(url: URL) {
-        print("🔵 loadAndPlay: \(url.lastPathComponent), gen=\(playbackGeneration)")
+        debugLog("🔵 loadAndPlay: \(url.lastPathComponent), gen=\(playbackGeneration)")
         stop()
+        activeSource = .local
         playbackGeneration &+= 1
-        print("🔵 loadAndPlay: after stop, new gen=\(playbackGeneration)")
+        debugLog("🔵 loadAndPlay: after stop, new gen=\(playbackGeneration)")
 
         do {
             try loadFile(url: url)
 
             if !engine.isRunning {
                 try engine.start()
-                print("🔵 loadAndPlay: engine started")
+                debugLog("🔵 loadAndPlay: engine started")
             }
             installSpectrumTap()
             scheduleAndPlay()
         } catch {
-            print("🔴 AudioEngine: failed to load \(url.lastPathComponent): \(error)")
+            debugLog("🔴 AudioEngine: failed to load \(url.lastPathComponent): \(error)")
         }
     }
 
@@ -185,8 +236,9 @@ class AudioEngine: ObservableObject {
     /// Used for CUE-derived virtual tracks. When playback reaches the end frame
     /// the completion handler posts `.trackDidFinish` exactly like a normal track.
     func loadAndPlay(url: URL, startTime: TimeInterval, endTime: TimeInterval?) {
-        print("🔵 loadAndPlay(range): \(url.lastPathComponent) [\(startTime), \(endTime as Any)]")
+        debugLog("🔵 loadAndPlay(range): \(url.lastPathComponent) [\(startTime), \(endTime as Any)]")
         stop()
+        activeSource = .local
         playbackGeneration &+= 1
 
         do {
@@ -205,7 +257,7 @@ class AudioEngine: ObservableObject {
             currentSegmentStartFrame = seekFrame
             scheduleSegment(endFrame: endFrame)
         } catch {
-            print("🔴 AudioEngine: failed to load \(url.lastPathComponent): \(error)")
+            debugLog("🔴 AudioEngine: failed to load \(url.lastPathComponent): \(error)")
         }
     }
 
@@ -213,7 +265,7 @@ class AudioEngine: ObservableObject {
     private func loadFile(url: URL) throws {
         audioFile = try AVAudioFile(forReading: url)
         guard let file = audioFile else {
-            print("🔴 loadFile: audioFile is nil after init")
+            debugLog("🔴 loadFile: audioFile is nil after init")
             return
         }
 
@@ -224,7 +276,7 @@ class AudioEngine: ObservableObject {
         needsScheduling = true
         currentSegmentStartFrame = 0
         currentSegmentEndFrame = 0
-        print("🔵 loadFile: file loaded, sampleRate=\(audioSampleRate), frames=\(audioLengthFrames), duration=\(duration)s")
+        debugLog("🔵 loadFile: file loaded, sampleRate=\(audioSampleRate), frames=\(audioLengthFrames), duration=\(duration)s")
     }
 
     func play() {
@@ -245,11 +297,18 @@ class AudioEngine: ObservableObject {
             playState = .playing
             startTimeUpdates()
         } catch {
-            print("AudioEngine: failed to start: \(error)")
+            debugLog("AudioEngine: failed to start: \(error)")
         }
     }
 
     func pause() {
+        // A live stream can't meaningfully pause — the buffer would back up and
+        // play stale audio on resume. Treat pause as stop; the play button
+        // reconnects from the live edge.
+        if isStreaming {
+            stop()
+            return
+        }
         playerNode.pause()
         isPlaying = false
         playState = .paused
@@ -257,7 +316,7 @@ class AudioEngine: ObservableObject {
     }
 
     func stop() {
-        print("🟡 stop() called, gen=\(playbackGeneration), isPlaying=\(isPlaying)")
+        debugLog("🟡 stop() called, gen=\(playbackGeneration), isPlaying=\(isPlaying)")
         playerNode.stop()
         isPlaying = false
         playState = .stopped
@@ -268,6 +327,8 @@ class AudioEngine: ObservableObject {
         currentSegmentStartFrame = 0
         currentSegmentEndFrame = 0
         stopTimeUpdates()
+        stopStream()
+        streamPhase = .idle
     }
 
     func togglePlayPause() {
@@ -289,6 +350,239 @@ class AudioEngine: ObservableObject {
         } else {
             currentTime = time
         }
+    }
+
+    // MARK: - Streaming
+
+    /// Begin streaming audio from a SHOUTcast/ICEcast URL.
+    /// Routes audio through the full DSP chain (EQ → mixer → output).
+    func playStream(url streamURL: URL) {
+        stop()
+        stopStream()
+        isStreaming = true
+        activeSource = .stream
+        currentStreamURL = streamURL
+        streamNowPlaying = ""
+        streamErrorText = ""
+        streamPhase = .connecting
+
+        // Create and attach a dedicated node for streaming. It joins the shared
+        // sourceMixer on its own input bus — never the EQ directly — so the local
+        // playerNode keeps its connection. Explicit 44.1 kHz format matches the
+        // PCM buffers the converter produces.
+        let outFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)
+        let streamNode = AVAudioPlayerNode()
+        engine.attach(streamNode)
+        engine.connect(streamNode, to: sourceMixer, format: outFormat)
+        streamNode.pan = balance
+        streamSourceNode = streamNode
+        streamOutputFormat = outFormat
+
+        // Start the engine if not running
+        if !engine.isRunning {
+            do { try engine.start() } catch {
+                debugLog("🔴 AudioEngine: failed to start engine for stream: \(error)")
+                return
+            }
+        }
+        installSpectrumTap()
+
+        // Set up parser
+        let parser = ShoutcastStreamParser()
+        streamParser = parser
+
+        parser.onFormatReady = { [weak self] format in
+            guard let self, self.isStreaming else { return }
+            guard let outputFormat = self.streamOutputFormat else { return }
+
+            debugLog("🎵 AudioEngine: stream format ready — \(format)")
+            let converter = AVAudioConverter(from: format, to: outputFormat)
+            self.streamConverter = converter
+        }
+
+        parser.onPackets = { [weak self] packets in
+            guard let self, self.isStreaming,
+                  let converter = self.streamConverter,
+                  let outputFormat = self.streamOutputFormat,
+                  let streamNode = self.streamSourceNode else { return }
+
+            let inputFormat = converter.inputFormat
+            let inASBD = inputFormat.streamDescription.pointee
+            // Frames produced per compressed packet (MP3 = 1152, AAC = 1024); fall back if unknown.
+            let framesPerPacket = inASBD.mFramesPerPacket == 0 ? 1152 : inASBD.mFramesPerPacket
+            // Account for resampling to the 44.1 kHz output (e.g. a 22.05 kHz stream doubles frame count).
+            let resampleRatio = inputFormat.sampleRate > 0 ? outputFormat.sampleRate / inputFormat.sampleRate : 1
+            let outputCapacity = AVAudioFrameCount(ceil(Double(framesPerPacket) * resampleRatio)) + 1024
+
+            for packet in packets {
+                let packetSize = packet.data.count
+                guard packetSize > 0 else { continue }
+
+                // Create a compressed input buffer holding this single packet.
+                // `inputBuffer.data` IS the destination for the raw compressed bytes —
+                // it is not an AudioBufferList.
+                let inputBuffer = AVAudioCompressedBuffer(
+                    format: inputFormat,
+                    packetCapacity: 1,
+                    maximumPacketSize: packetSize
+                )
+
+                packet.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                    if let base = raw.baseAddress {
+                        inputBuffer.data.copyMemory(from: base, byteCount: packetSize)
+                    }
+                }
+                inputBuffer.byteLength = UInt32(packetSize)
+                inputBuffer.packetCount = 1
+                // The packet now lives at offset 0 in this fresh buffer, so the description
+                // must reference offset 0 regardless of where it sat in the stream.
+                inputBuffer.packetDescriptions?.pointee = AudioStreamPacketDescription(
+                    mStartOffset: 0,
+                    mVariableFramesInPacket: packet.packetDescription?.mVariableFramesInPacket ?? 0,
+                    mDataByteSize: UInt32(packetSize)
+                )
+
+                // Convert to PCM
+                guard let outputBuffer = AVAudioPCMBuffer(
+                    pcmFormat: outputFormat,
+                    frameCapacity: outputCapacity
+                ) else { continue }
+
+                // Provide the single input packet exactly once.
+                var packetProvided = false
+
+                var conversionError: NSError?
+                let status = converter.convert(to: outputBuffer, error: &conversionError) { _, status in
+                    if !packetProvided {
+                        packetProvided = true
+                        status.pointee = .haveData
+                        return inputBuffer
+                    } else {
+                        status.pointee = .noDataNow
+                        return nil
+                    }
+                }
+
+                if status == .error {
+                    if let err = conversionError {
+                        debugLog("🔴 AudioEngine: conversion error: \(err)")
+                    }
+                    continue
+                }
+
+                // A converted buffer with no frames carries no audio — don't schedule it.
+                guard outputBuffer.frameLength > 0 else { continue }
+
+                // Schedule into the player node
+                streamNode.scheduleBuffer(outputBuffer, completionHandler: nil)
+
+                // Start the node on first buffer
+                if !streamNode.isPlaying {
+                    streamNode.play()
+                    debugLog("🎵 AudioEngine: stream playback started")
+                    DispatchQueue.main.async { [weak self] in
+                        self?.isPlaying = true
+                        self?.playState = .playing
+                        self?.streamPhase = .playing
+                        self?.duration = 0 // live stream — no fixed duration
+                    }
+                }
+            }
+        }
+
+        parser.onMetadata = { [weak self] metadata in
+            guard let self, self.isStreaming else { return }
+            if !metadata.streamTitle.isEmpty {
+                debugLog("🎵 Now Playing: \(metadata.streamTitle)")
+                self.streamNowPlaying = metadata.streamTitle
+            }
+        }
+
+        parser.onError = { [weak self] error in
+            debugLog("🔴 AudioEngine: stream error: \(error)")
+            DispatchQueue.main.async {
+                self?.handleStreamError(error)
+            }
+        }
+
+        currentTime = 0
+        duration = 0
+        parser.start(url: streamURL)
+    }
+
+    /// Stop the active stream and clean up streaming resources.
+    func stopStream() {
+        isStreaming = false
+        streamParser?.stop()
+        streamParser = nil
+        streamConverter = nil
+
+        if let node = streamSourceNode {
+            node.stop()
+            engine.detach(node)
+            streamSourceNode = nil
+        }
+        streamOutputFormat = nil
+        streamNowPlaying = ""
+    }
+
+    /// Reconnect and play the most recent stream — used by the play button after
+    /// a stop while the active source is a stream. No-op if no stream was ever set.
+    func replayCurrentStream() {
+        guard let url = currentStreamURL else { return }
+        playStream(url: url)
+    }
+
+    /// Mark the active stream as connecting before its URL is even resolved, so the
+    /// marquee shows "Connecting…" immediately on click and any local audio stops.
+    func beginStreamConnecting() {
+        stop()
+        activeSource = .stream
+        streamNowPlaying = ""
+        streamErrorText = ""
+        streamPhase = .connecting
+    }
+
+    /// Surface a friendly failure (e.g. the directory couldn't resolve a stream URL)
+    /// without a parser ever starting.
+    func reportStreamFailure(_ message: String) {
+        stopStream()
+        streamErrorText = message
+        streamPhase = .failed
+    }
+
+    private func handleStreamError(_ error: Error) {
+        guard isStreaming else { return }
+        isPlaying = false
+        playState = .stopped
+        stopStream()
+
+        // A cancellation is a normal user-initiated stop, not a failure.
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled {
+            streamPhase = .idle
+            return
+        }
+        streamErrorText = Self.friendlyStreamError(error)
+        streamPhase = .failed
+    }
+
+    /// Maps a raw streaming error to a short, non-technical line for the marquee.
+    private static func friendlyStreamError(_ error: Error) -> String {
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain {
+            switch ns.code {
+            case NSURLErrorNotConnectedToInternet:
+                return "No internet connection"
+            case NSURLErrorTimedOut:
+                return "Connection timed out"
+            case NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost, NSURLErrorDNSLookupFailed:
+                return "Station unavailable"
+            default:
+                break
+            }
+        }
+        return "Stream error — station may be offline"
     }
 
     // MARK: - EQ
@@ -322,13 +616,13 @@ class AudioEngine: ObservableObject {
 
     private func scheduleSegment(endFrame: AVAudioFramePosition) {
         guard let file = audioFile else {
-            print("🔴 scheduleSegment: no audioFile")
+            debugLog("🔴 scheduleSegment: no audioFile")
             return
         }
         let framesToPlay = endFrame - seekFrame
-        print("🟢 scheduleSegment: framesToPlay=\(framesToPlay), seekFrame=\(seekFrame), endFrame=\(endFrame), gen=\(playbackGeneration)")
+        debugLog("🟢 scheduleSegment: framesToPlay=\(framesToPlay), seekFrame=\(seekFrame), endFrame=\(endFrame), gen=\(playbackGeneration)")
         guard framesToPlay > 0 else {
-            print("🔴 scheduleSegment: no frames to play, calling handleTrackCompletion")
+            debugLog("🔴 scheduleSegment: no frames to play, calling handleTrackCompletion")
             handleTrackCompletion()
             return
         }
@@ -360,9 +654,9 @@ class AudioEngine: ObservableObject {
     }
 
     private func handleTrackCompletion() {
-        print("🔴 handleTrackCompletion: isPlaying=\(isPlaying), repeatMode=\(repeatMode), gen=\(playbackGeneration)")
+        debugLog("🔴 handleTrackCompletion: isPlaying=\(isPlaying), repeatMode=\(repeatMode), gen=\(playbackGeneration)")
         guard isPlaying else {
-            print("🔴 handleTrackCompletion: NOT playing, ignoring")
+            debugLog("🔴 handleTrackCompletion: NOT playing, ignoring")
             return
         }
 
@@ -388,7 +682,7 @@ class AudioEngine: ObservableObject {
             currentSegmentStartFrame = pending.startFrame
             currentSegmentEndFrame = pending.endFrame
             pendingChain = nil
-            print("🟢 handleTrackCompletion: promoted chained segment [\(pending.startFrame), \(pending.endFrame)]")
+            debugLog("🟢 handleTrackCompletion: promoted chained segment [\(pending.startFrame), \(pending.endFrame)]")
             NotificationCenter.default.post(name: .trackDidFinish, object: nil,
                                             userInfo: [AudioEngine.gaplessChainedKey: true])
             return
@@ -397,7 +691,7 @@ class AudioEngine: ObservableObject {
         isPlaying = false
         playState = .stopped
         stopTimeUpdates()
-        print("🔴 handleTrackCompletion: posting .trackDidFinish")
+        debugLog("🔴 handleTrackCompletion: posting .trackDidFinish")
         NotificationCenter.default.post(name: .trackDidFinish, object: nil)
     }
 

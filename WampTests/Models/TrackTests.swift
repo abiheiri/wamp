@@ -81,4 +81,67 @@ struct TrackTests {
         #expect(decoded.cueStart == 10.5)
         #expect(decoded.cueEnd == 40.25)
     }
+
+    // MARK: - shoutcastStream factory
+
+    @Test func shoutcastStream_buildsTrackFromStation() async throws {
+        let streamURL = try #require(URL(string: "http://185.33.21.112:80/stream?icy=https"))
+        let station = ShoutcastStation(
+            id: 1552431,
+            name: "Rock Classics",
+            genre: "Rock",
+            bitrate: 64,
+            listeners: 10,
+            format: "audio/mpeg",
+            streamURL: nil
+        )
+
+        let track = Track.shoutcastStream(from: station, streamURL: streamURL)
+
+        #expect(track.url == streamURL)
+        #expect(track.title == "Rock Classics")
+        #expect(track.artist == "Rock Classics")
+        #expect(track.album == "SHOUTcast Radio")
+        #expect(track.genre == "Rock")
+        #expect(track.bitrate == 64)
+        #expect(track.duration == 0)
+        #expect(track.channels == 2)
+        #expect(track.sampleRate == 0)
+    }
+
+    @Test func shoutcastStream_formatAAC() {
+        let streamURL = URL(string: "http://example.com:8000/aac")!
+        let station = ShoutcastStation(
+            id: 1,
+            name: "AAC Station",
+            genre: "Pop",
+            bitrate: 128,
+            listeners: 0,
+            format: "audio/aac",
+            streamURL: nil
+        )
+
+        let track = Track.shoutcastStream(from: station, streamURL: streamURL)
+
+        #expect(track.url == streamURL)
+        #expect(track.bitrate == 128)
+    }
+
+    @Test func shoutcastStream_noListenersStillWorks() {
+        let streamURL = URL(string: "http://example.com:8000/stream")!
+        let station = ShoutcastStation(
+            id: 99,
+            name: "Quiet FM",
+            genre: "Ambient",
+            bitrate: 96,
+            listeners: 0,
+            format: "audio/mpeg",
+            streamURL: nil
+        )
+
+        let track = Track.shoutcastStream(from: station, streamURL: streamURL)
+
+        #expect(track.title == "Quiet FM")
+        #expect(track.duration == 0)
+    }
 }

@@ -23,11 +23,33 @@ Wamp reads your local Music.app library. It does not sync with iCloud, does not 
 
 ## What Wamp **does** support
 
-Local audio files. Specifically:
+Local audio files and SHOUTcast internet radio.
+
+### Local files
 
 - **Formats:** MP3, AAC, M4A, FLAC, WAV, AIFF, OGG
 - **Sources:** any file on disk, including tracks Apple Music stores locally (downloaded from the service for offline playback, or ripped from CD into your library)
 - **Playlist formats:** M3U, M3U8, CUE sheets
 - **Import:** one-way import from the Music.app local library (see [Apple Music import](#)); no write-back, no sync
 
-In short: if the bytes live on your disk, Wamp will play them with full DSP. If they live on someone else's server, they're out of scope.
+### SHOUTcast internet radio
+
+SHOUTcast is **implemented**, not a non-goal. It earns an exception for three reasons:
+
+1. **No DRM.** SHOUTcast streams are raw MP3/AAC over HTTP with ICY metadata. The audio bytes arrive unencrypted and can be fed directly into Wamp's `AVAudioEngine` graph — unlike Spotify (DRM-encumbered, no DSP path) or Apple Music (`ApplicationMusicPlayer` bypasses the engine).
+
+2. **Winamp heritage.** SHOUTcast streaming was a first-class feature of Winamp 2.x. The minibrowser loaded the SHOUTcast directory, and tuning into a station dropped a `.pls` into the playlist. Replicating this experience is core to Wamp's purpose.
+
+3. **No streaming-service dependency.** SHOUTcast is a protocol, not a platform. Stations are independent. There's no account, no subscription, no API key, no centralized gatekeeper that could deprecate an endpoint and kill the feature.
+
+The implementation streams raw MP3/AAC over HTTP with `URLSession`, strips
+out ICY metadata blocks, and feeds the audio bytes through `AudioFileStream`
+to discover the format and emit compressed packets. `AudioEngine` then
+converts those packets to PCM with `AVAudioConverter` and schedules them on a
+dedicated stream player node. Both the local file player node and the stream
+player node feed into a shared `sourceMixer`, so the same 10-band EQ, spectrum
+analyzer, volume, and balance apply no matter which source is playing.
+
+- **Playlist formats:** PLS (SHOUTcast tune-in)
+
+In short: if the bytes live on your disk or come over an unencrypted internet radio stream, Wamp will play them with full DSP.
