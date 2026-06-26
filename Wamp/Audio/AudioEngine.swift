@@ -44,7 +44,10 @@ class AudioEngine: ObservableObject {
         didSet { engine.mainMixerNode.outputVolume = effectiveVolume }
     }
     @Published var balance: Float = 0 {
-        didSet { playerNode.pan = balance }
+        didSet {
+            playerNode.pan = balance
+            streamSourceNode?.pan = balance
+        }
     }
     @Published var isMuted = false {
         didSet { engine.mainMixerNode.outputVolume = effectiveVolume }
@@ -75,6 +78,10 @@ class AudioEngine: ObservableObject {
     // MARK: - Private
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
+    /// Mixes the local player and any stream node into the EQ's single input bus.
+    /// The EQ has only one input — connecting two sources straight to it displaces
+    /// the first; routing both through this mixer lets them coexist.
+    private let sourceMixer = AVAudioMixerNode()
     private let eq: AVAudioUnitEQ
     private var audioFile: AVAudioFile?
     private var seekFrame: AVAudioFramePosition = 0
@@ -118,8 +125,13 @@ class AudioEngine: ObservableObject {
 
     private func setupAudioChain() {
         engine.attach(playerNode)
+        engine.attach(sourceMixer)
         engine.attach(eq)
-        engine.connect(playerNode, to: eq, format: nil)
+        // playerNode → sourceMixer → eq → mainMixer. A stream node attaches to
+        // sourceMixer on its own bus, so the local player is never disconnected
+        // from the graph when switching to/from a stream.
+        engine.connect(playerNode, to: sourceMixer, format: nil)
+        engine.connect(sourceMixer, to: eq, format: nil)
         engine.connect(eq, to: engine.mainMixerNode, format: nil)
         engine.mainMixerNode.outputVolume = effectiveVolume
     }
@@ -338,16 +350,17 @@ class AudioEngine: ObservableObject {
         currentStreamURL = streamURL
         streamNowPlaying = ""
 
-        // Create and attach a dedicated node for streaming
+        // Create and attach a dedicated node for streaming. It joins the shared
+        // sourceMixer on its own input bus — never the EQ directly — so the local
+        // playerNode keeps its connection. Explicit 44.1 kHz format matches the
+        // PCM buffers the converter produces.
+        let outFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)
         let streamNode = AVAudioPlayerNode()
         engine.attach(streamNode)
-        engine.connect(streamNode, to: eq, format: nil)
+        engine.connect(streamNode, to: sourceMixer, format: outFormat)
+        streamNode.pan = balance
         streamSourceNode = streamNode
-
-        streamOutputFormat = AVAudioFormat(
-            standardFormatWithSampleRate: 44100,
-            channels: 2
-        )
+        streamOutputFormat = outFormat
 
         // Start the engine if not running
         if !engine.isRunning {
