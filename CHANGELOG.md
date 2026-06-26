@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **SHOUTcast internet radio streaming.** Browse stations by genre
+  or search from the SHOUTcast directory, then stream live radio
+  through the full audio pipeline (10-band EQ, volume, balance).
+  Access via Controls ▸ SHOUTcast Radio… (⌘⇧R). Includes ICY
+  metadata parsing for track titles.
+
 - **Mini-transport buttons in the skinned playlist are now interactive.**
   The five baked buttons (prev / play / pause / stop / next) in
   pledit.bmp's bottom-right corner now respond to clicks and route
