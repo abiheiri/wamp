@@ -2,13 +2,17 @@
 
 # 🦙 Wamp
 
-### Classic Winamp 2.x, reborn as a native macOS app
+## Classic Winamp 2.x, reborn as a native macOS app
 
 No Electron. No web views. No dependencies. Just Swift, AppKit, and nostalgia.
 
 <br/>
 
-<img width="411" alt="Wamp main window — player, equalizer and playlist" src="https://github.com/user-attachments/assets/25b475ea-65ab-4307-a4ce-843adb048fa8" />
+<img
+  width="411"
+  alt="Wamp main window — player, equalizer and playlist"
+  src="https://github.com/user-attachments/assets/25b475ea-65ab-4307-a4ce-843adb048fa8"
+/>
 
 <!-- PLACEHOLDER(hero-gif): replace the static shot above with a short GIF —
      player running with the spectrum analyzer dancing, then Cmd+Shift+S
@@ -28,13 +32,19 @@ No Electron. No web views. No dependencies. Just Swift, AppKit, and nostalgia.
 
 ## ✨ Highlights
 
-- 🎨 **Real Winamp skins** — load any classic `.wsz` skin and the entire app reskins: sprites, bitmap fonts, playlist colors, visualizer palette
-- 🔊 **Gapless CUE playback** — one FLAC + `.cue` becomes individual tracks with sample-accurate, gapless transitions
-- 🎚 **10-band equalizer** with preamp, presets, and a live frequency-response curve
-- 📊 **Real-time spectrum analyzer** — 32-bin FFT via Accelerate, skinnable via `viscolor.txt`
+- 🎨 **Real Winamp skins** — load any classic `.wsz` skin and the entire app
+  reskins: sprites, bitmap fonts, playlist colors, visualizer palette
+- 🔊 **Gapless CUE playback** — one FLAC + `.cue` becomes individual tracks with
+  sample-accurate, gapless transitions
+- 🎚 **10-band equalizer** with preamp, presets, and a live frequency-response
+  curve
+- 📊 **Real-time spectrum analyzer** — 32-bin FFT via Accelerate, skinnable via
+  `viscolor.txt`
 - ⚡ **Jump to File** — incremental search over 10k-track playlists in under 16 ms
-- 🍎 **First-class macOS citizen** — media keys, Control Center "Now Playing", menu bar tray, full state restore
-- 📻 **SHOUTcast Radio** — browse stations by genre or search, stream live MP3/AAC through the full DSP chain (EQ, spectrum, volume, balance)
+- 🍎 **First-class macOS citizen** — media keys, Control Center "Now Playing",
+  menu bar tray, full state restore
+- 📻 **SHOUTcast Radio** — browse stations by genre or search, stream live MP3/AAC
+  through the full DSP chain (EQ, spectrum, volume, balance)
 
 ## 🎵 Player
 
@@ -73,14 +83,16 @@ A few classics to try live in [`skins/`](skins): *base-2.91*, *Blue Plasma*,
 ## 📜 Playlist
 
 - Drag & drop files, folders, `.m3u`/`.m3u8` and `.cue` straight from Finder
-- Multi-select like a real Mac app — Shift-click ranges, Cmd-click toggles, `⌘A`, Backspace removes
-- Instant search box + **Jump to File** (`⌘J`) with prefix → word-boundary → substring ranking
+- Multi-select like a real Mac app — Shift-click ranges, Cmd-click toggles,
+  `⌘A`, Backspace removes
+- Instant search box + **Jump to File** (`⌘J`) with prefix → word-boundary →
+  substring ranking
 - Shuffle and repeat (off / track / playlist) with auto-advance
 - **Import from Music Library…** — pulls local tracks and playlists from Music.app
-  (via `ITLibrary`, with an `iTunes Music Library.xml` fallback); streaming-only and
-  missing files are skipped and counted
-- **SHOUTcast Radio tab** — browse stations by genre or search, double-click to play;
-  streams flow through the same DSP chain as local files
+  (via `ITLibrary`, with an `iTunes Music Library.xml` fallback); streaming-only
+  and missing files are skipped and counted
+- **SHOUTcast Radio tab** — browse stations by genre or search, double-click to
+  play; streams flow through the same DSP chain as local files
 - Skinned scrollbar, skin-correct row colors, live track-count/duration footer
 
 <!-- PLACEHOLDER(jump-gif): short GIF — Cmd+J opens Jump to File over a large
@@ -118,7 +130,8 @@ Plus hardware **media keys** (play/pause, next, previous) and the macOS
 
 | Audio | Playlists |
 |---|---|
-| MP3 · AAC · M4A · FLAC · WAV · AIFF | M3U · M3U8 · CUE (external & FLAC-embedded) |
+| MP3 · AAC · M4A · FLAC · WAV · AIFF | M3U · M3U8 · CUE |
+| | (external & FLAC-embedded) |
 
 ## 🚀 Getting started
 
@@ -155,7 +168,7 @@ xcodebuild -project Wamp.xcodeproj -scheme Wamp -destination 'platform=macOS' te
 
 ## 🏗 Architecture
 
-```
+```text
 AppDelegate  (nib-less bootstrap, owns the singletons)
 ├── AudioEngine        PlayerNode → 10-band EQ → Mixer → Output, FFT tap
 ├── PlaylistManager    track list, shuffle, repeat, auto-advance

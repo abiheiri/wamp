@@ -42,7 +42,13 @@ SHOUTcast is **implemented**, not a non-goal. It earns an exception for three re
 
 3. **No streaming-service dependency.** SHOUTcast is a protocol, not a platform. Stations are independent. There's no account, no subscription, no API key, no centralized gatekeeper that could deprecate an endpoint and kill the feature.
 
-The implementation uses `AudioFileStream` + `AudioConverter` to decode the stream into PCM buffers, which are scheduled on a player node inside the existing `AVAudioEngine`. EQ, spectrum analyzer, volume, balance — everything works exactly as it does for local files.
+The implementation streams raw MP3/AAC over HTTP with `URLSession`, strips
+out ICY metadata blocks, and feeds the audio bytes through `AudioFileStream`
+to discover the format and emit compressed packets. `AudioEngine` then
+converts those packets to PCM with `AVAudioConverter` and schedules them on a
+dedicated stream player node. Both the local file player node and the stream
+player node feed into a shared `sourceMixer`, so the same 10-band EQ, spectrum
+analyzer, volume, and balance apply no matter which source is playing.
 
 - **Playlist formats:** PLS (SHOUTcast tune-in)
 
