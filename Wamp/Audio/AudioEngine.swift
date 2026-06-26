@@ -15,6 +15,14 @@ enum PlayState {
     case paused
 }
 
+/// What the transport controls currently act on: the local playlist or a
+/// SHOUTcast stream. The play/next/prev handlers consult this to route to the
+/// right manager.
+enum PlaybackSource {
+    case local
+    case stream
+}
+
 extension Notification.Name {
     static let trackDidFinish = Notification.Name("trackDidFinish")
 }
@@ -47,6 +55,15 @@ class AudioEngine: ObservableObject {
     }
     @Published var preampGain: Float = 0 // dB, -12 to +12
     @Published var spectrumData: [Float] = Array(repeating: 0, count: 32)
+
+    /// Whether the transport is driving the local playlist or a SHOUTcast stream.
+    @Published private(set) var activeSource: PlaybackSource = .local
+    /// Live ICY "now playing" text for the active stream (empty when not streaming
+    /// or before the first metadata block arrives).
+    @Published private(set) var streamNowPlaying: String = ""
+    /// URL of the stream currently (or most recently) playing, so the play button
+    /// can reconnect after a stop without re-resolving through the directory.
+    private(set) var currentStreamURL: URL?
 
     // MARK: - EQ State
     @Published private(set) var eqBands: [Float] = Array(repeating: 0, count: 10) // dB per band
@@ -135,6 +152,7 @@ class AudioEngine: ObservableObject {
     func loadAndPlay(url: URL) {
         print("🔵 loadAndPlay: \(url.lastPathComponent), gen=\(playbackGeneration)")
         stop()
+        activeSource = .local
         playbackGeneration &+= 1
         print("🔵 loadAndPlay: after stop, new gen=\(playbackGeneration)")
 
@@ -195,6 +213,7 @@ class AudioEngine: ObservableObject {
     func loadAndPlay(url: URL, startTime: TimeInterval, endTime: TimeInterval?) {
         print("🔵 loadAndPlay(range): \(url.lastPathComponent) [\(startTime), \(endTime as Any)]")
         stop()
+        activeSource = .local
         playbackGeneration &+= 1
 
         do {
@@ -258,6 +277,13 @@ class AudioEngine: ObservableObject {
     }
 
     func pause() {
+        // A live stream can't meaningfully pause — the buffer would back up and
+        // play stale audio on resume. Treat pause as stop; the play button
+        // reconnects from the live edge.
+        if isStreaming {
+            stop()
+            return
+        }
         playerNode.pause()
         isPlaying = false
         playState = .paused
@@ -308,6 +334,9 @@ class AudioEngine: ObservableObject {
         stop()
         stopStream()
         isStreaming = true
+        activeSource = .stream
+        currentStreamURL = streamURL
+        streamNowPlaying = ""
 
         // Create and attach a dedicated node for streaming
         let streamNode = AVAudioPlayerNode()
@@ -432,9 +461,10 @@ class AudioEngine: ObservableObject {
         }
 
         parser.onMetadata = { [weak self] metadata in
-            guard self?.isStreaming == true else { return }
+            guard let self, self.isStreaming else { return }
             if !metadata.streamTitle.isEmpty {
                 print("🎵 Now Playing: \(metadata.streamTitle)")
+                self.streamNowPlaying = metadata.streamTitle
             }
         }
 
@@ -463,6 +493,14 @@ class AudioEngine: ObservableObject {
             streamSourceNode = nil
         }
         streamOutputFormat = nil
+        streamNowPlaying = ""
+    }
+
+    /// Reconnect and play the most recent stream — used by the play button after
+    /// a stop while the active source is a stream. No-op if no stream was ever set.
+    func replayCurrentStream() {
+        guard let url = currentStreamURL else { return }
+        playStream(url: url)
     }
 
     private func handleStreamError() {

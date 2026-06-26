@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 class AppDelegate: NSObject, NSApplicationDelegate {
     var audioEngine: AudioEngine!
     var playlistManager: PlaylistManager!
+    var radioManager: RadioManager!
     var stateManager: StateManager!
     var mainWindow: MainWindow!
     var statusItem: NSStatusItem!
@@ -13,7 +14,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private weak var doubleSizeMenuItem: NSMenuItem?
     private var jumpToFileWindow: JumpToFileWindow?
     private var jumpToFileMonitor: Any?
-    private var shoutcastBrowserWindow: ShoutcastBrowserWindow?
 
     static func main() {
         let app = NSApplication.shared
@@ -27,9 +27,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         audioEngine = AudioEngine()
         playlistManager = PlaylistManager()
+        radioManager = RadioManager()
         stateManager = StateManager()
 
         playlistManager.setAudioEngine(audioEngine)
+        radioManager.setAudioEngine(audioEngine)
 
         // Restore state
         let appState = stateManager.loadAppState()
@@ -59,7 +61,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create window
         mainWindow = MainWindow()
-        mainWindow.bindToModels(audioEngine: audioEngine, playlistManager: playlistManager)
+        mainWindow.bindToModels(audioEngine: audioEngine, playlistManager: playlistManager, radioManager: radioManager)
         mainWindow.playlistView.onMiniEject = { [weak self] in self?.openFileAction() }
         mainWindow.showEqualizer = appState.showEqualizer
         mainWindow.showPlaylist = appState.showPlaylist
@@ -91,13 +93,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeyManager = HotKeyManager(audioEngine: audioEngine, playlistManager: playlistManager)
 
         installJumpToFileShortcut()
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(stopShoutcastStream),
-            name: .shoutcastStopStream,
-            object: nil
-        )
 
         NSApp.activate()
     }
@@ -266,8 +261,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let shuffle = item("Shuffle", #selector(toggleShuffle), "s", symbol: "shuffle")
         let jump = item("Jump to File…", #selector(presentJumpToFileWindow), "j", symbol: "magnifyingglass")
         jump.keyEquivalentModifierMask = [.command]
-        let shoutcast = item("SHOUTcast Radio…", #selector(presentShoutcastBrowser), "r", symbol: "antenna.radiowaves.left.and.right")
-        shoutcast.keyEquivalentModifierMask = [.command, .shift]
 
         // View
         let showPlayer = item("Show Player", #selector(showPlayerAction), "1", symbol: "play.rectangle")
@@ -293,7 +286,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             file: [openFile, openFolder, .separator(), importMusic],
             edit: [selectAll],
             controls: [playPause, stop, next, prev, .separator(),
-                       repeat_, shuffle, .separator(), jump, shoutcast],
+                       repeat_, shuffle, .separator(), jump],
             view: [showPlayer, showEQ, showPL, .separator(),
                    alwaysOnTop, doubleSize, .separator(),
                    loadSkin, unloadSkin],
@@ -448,6 +441,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func togglePlayPause() {
+        // Streaming: a live stream can't pause, so toggle is stop ⇄ reconnect.
+        if audioEngine.activeSource == .stream {
+            if audioEngine.playState == .playing {
+                audioEngine.stop()
+            } else {
+                audioEngine.replayCurrentStream()
+            }
+            return
+        }
         if !audioEngine.isPlaying && audioEngine.currentTime == 0 && audioEngine.duration == 0,
            playlistManager.currentTrack != nil {
             // playTrack honors CUE segment bounds (a bare loadAndPlay(url:)
@@ -458,8 +460,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func stopAction() { audioEngine.stop() }
-    @objc private func nextAction() { playlistManager.playNext() }
-    @objc private func prevAction() { playlistManager.playPrevious() }
+    @objc private func nextAction() {
+        if audioEngine.activeSource == .stream {
+            Task { await radioManager.playNext() }
+        } else {
+            playlistManager.playNext()
+        }
+    }
+    @objc private func prevAction() {
+        if audioEngine.activeSource == .stream {
+            Task { await radioManager.playPrevious() }
+        } else {
+            playlistManager.playPrevious()
+        }
+    }
 
     @objc private func toggleRepeat() {
         let next = RepeatMode(rawValue: (audioEngine.repeatMode.rawValue + 1) % 3) ?? .off
@@ -574,19 +588,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
-    // MARK: - SHOUTcast Browser
-    @objc func presentShoutcastBrowser() {
-        if shoutcastBrowserWindow == nil {
-            let panel = ShoutcastBrowserWindow()
-            panel.browserDelegate = self
-            shoutcastBrowserWindow = panel
-        }
-        shoutcastBrowserWindow?.present(over: mainWindow)
-    }
-
-    @objc private func stopShoutcastStream() {
-        audioEngine.stopStream()
-    }
 
     // MARK: - Jump to File
     @objc func presentJumpToFileWindow() {
@@ -654,13 +655,5 @@ extension AppDelegate: JumpToFileDelegate {
 
     func playTrack(atPlaylistIndex index: Int) {
         playlistManager.playTrack(at: index)
-    }
-}
-
-// MARK: - ShoutcastBrowserDelegate
-extension AppDelegate: ShoutcastBrowserDelegate {
-    func playStream(url: URL, title: String) {
-        print("SHOUTcast: Starting stream — \(title)")
-        audioEngine.playStream(url: url)
     }
 }

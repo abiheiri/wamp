@@ -139,18 +139,28 @@ class MainWindow: NSWindow {
         super.keyDown(with: event)
     }
 
-    func bindToModels(audioEngine: AudioEngine, playlistManager: PlaylistManager) {
+    func bindToModels(audioEngine: AudioEngine, playlistManager: PlaylistManager, radioManager: RadioManager) {
         self.audioEngine = audioEngine
-        mainPlayerView.bindToModels(audioEngine: audioEngine, playlistManager: playlistManager)
+        mainPlayerView.bindToModels(audioEngine: audioEngine, playlistManager: playlistManager, radioManager: radioManager)
         equalizerView.bindToModel(audioEngine: audioEngine, playlistManager: playlistManager)
-        playlistView.bindToModel(playlistManager: playlistManager)
+        playlistView.bindToModel(playlistManager: playlistManager, radioManager: radioManager)
 
         // Mini-transport baked into pledit.bmp's BR corner mirrors the
         // main TransportBar — same play/pause/stop/prev/next semantics
-        // as MainPlayerView, including "loadAndPlay if stopped".
-        playlistView.onMiniPrev  = { [weak playlistManager] in playlistManager?.playPrevious() }
+        // as MainPlayerView, including stream routing by active source.
+        playlistView.onMiniPrev  = { [weak audioEngine, weak playlistManager, weak radioManager] in
+            if audioEngine?.activeSource == .stream {
+                Task { await radioManager?.playPrevious() }
+            } else {
+                playlistManager?.playPrevious()
+            }
+        }
         playlistView.onMiniPlay  = { [weak audioEngine, weak playlistManager] in
             guard let engine = audioEngine else { return }
+            if engine.activeSource == .stream {
+                if engine.playState != .playing { engine.replayCurrentStream() }
+                return
+            }
             if engine.playState == .stopped, let pm = playlistManager, pm.currentTrack != nil {
                 // playTrack honors CUE segment bounds (a bare loadAndPlay(url:)
                 // would play the whole album file) and re-arms gapless chaining.
@@ -161,7 +171,13 @@ class MainWindow: NSWindow {
         }
         playlistView.onMiniPause = { [weak audioEngine] in audioEngine?.pause() }
         playlistView.onMiniStop  = { [weak audioEngine] in audioEngine?.stop() }
-        playlistView.onMiniNext  = { [weak playlistManager] in playlistManager?.playNext() }
+        playlistView.onMiniNext  = { [weak audioEngine, weak playlistManager, weak radioManager] in
+            if audioEngine?.activeSource == .stream {
+                Task { await radioManager?.playNext() }
+            } else {
+                playlistManager?.playNext()
+            }
+        }
 
         mainPlayerView.onToggleEQ = { [weak self] in
             self?.showEqualizer.toggle()
