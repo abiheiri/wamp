@@ -37,8 +37,11 @@ class LCDDisplay: NSView {
     private func startScrolling() {
         scrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             guard let self = self, self.isScrolling, !self.text.isEmpty else { return }
-            self.scrollOffset += self.scrollSpeed
+            // Only animate (and redraw) when the title is too wide to fit. Short
+            // text is static, so redrawing it 30×/sec just burns CPU while idle.
             let textWidth = self.textSize().width + 30
+            guard textWidth > self.bounds.width else { return }
+            self.scrollOffset += self.scrollSpeed
             if self.scrollOffset > textWidth {
                 self.scrollOffset = -self.bounds.width
             }
