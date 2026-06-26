@@ -96,6 +96,7 @@ final class ShoutcastStreamParser: NSObject, URLSessionDataDelegate {
 extension ShoutcastStreamParser {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse) async {
+        print("📡 ShoutcastStreamParser: didReceive response, status: \((response as? HTTPURLResponse)?.statusCode ?? -1), mime: \(response.mimeType ?? "?")")
         // Extract ICY metadata interval from HTTP headers
         if let httpResponse = response as? HTTPURLResponse {
             let headers = httpResponse.allHeaderFields as? [String: String] ?? [:]
@@ -121,10 +122,12 @@ extension ShoutcastStreamParser {
         )
 
         guard status == noErr, let streamID = streamID else {
+            print("🔴 ShoutcastStreamParser: AudioFileStreamOpen failed: \(status)")
             onError?(ShoutcastStreamError.audioFileStreamInit(status))
             return
         }
         audioFileStreamID = streamID
+        print("📡 ShoutcastStreamParser: AudioFileStream opened OK, hint=\(hint), icyInterval=\(icyInterval)")
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -132,6 +135,9 @@ extension ShoutcastStreamParser {
             // Buffer until we have the stream parser ready
             buffer.append(data)
             return
+        }
+        if buffer.count > 0 {
+            print("📡 ShoutcastStreamParser: draining \(buffer.count) buffered bytes")
         }
 
         // Feed any buffered data first
@@ -220,6 +226,7 @@ private nonisolated func propertyListenerCallback(
 
         let format = AVAudioFormat(streamDescription: &asbd)
         if let format {
+            print("📡 ShoutcastStreamParser: propertyListener — format ready: \(format)")
             DispatchQueue.main.async {
                 parser.onFormatReady?(format)
             }

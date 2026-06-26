@@ -9,13 +9,14 @@ struct ICYMetadata: Equatable {
 }
 
 /// Parses ICY (I Can Yell) inline metadata embedded in SHOUTcast/ICEcast streams.
+/// All methods are pure — no shared mutable state.
 enum ICYMetadataParser {
 
     // MARK: - HTTP Header
 
     /// Extract the `icy-metaint` value (metadata interval in bytes) from HTTP response headers.
     /// Returns 0 if the header is absent or unparseable (meaning no metadata).
-    static func metadataInterval(from headers: [String: String]) -> Int {
+    nonisolated static func metadataInterval(from headers: [String: String]) -> Int {
         guard let raw = headers["icy-metaint"],
               let interval = Int(raw),
               interval > 0 else { return 0 }
@@ -28,7 +29,7 @@ enum ICYMetadataParser {
     /// Block format (after length byte):
     ///   `StreamTitle='...';StreamUrl='...';` (null-padded to length*16 bytes)
     /// Returns nil if no meaningful metadata was found.
-    static func parse(_ data: Data) -> ICYMetadata? {
+    nonisolated static func parse(_ data: Data) -> ICYMetadata? {
         guard !data.isEmpty else { return nil }
 
         // Trim null padding
@@ -50,7 +51,7 @@ enum ICYMetadataParser {
 
     /// Extract a key='value' pair from a semicolon-delimited ICY metadata string.
     /// Handles escaped single quotes inside values (e.g. `Don\'t`).
-    private static func extractValue(for key: String, from raw: String) -> String? {
+    private nonisolated static func extractValue(for key: String, from raw: String) -> String? {
         let pattern = #"\#(key)='((?:[^'\\]|\\.)*)'"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
               let match = regex.firstMatch(in: raw, options: [], range: NSRange(raw.startIndex..., in: raw)),

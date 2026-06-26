@@ -337,6 +337,7 @@ class AudioEngine: ObservableObject {
             guard let self, self.isStreaming else { return }
             guard let outputFormat = self.streamOutputFormat else { return }
 
+            print("🎵 AudioEngine: stream format ready — \(format)")
             let converter = AVAudioConverter(from: format, to: outputFormat)
             self.streamConverter = converter
         }
@@ -357,15 +358,18 @@ class AudioEngine: ObservableObject {
                     maximumPacketSize: packetSize
                 )
 
-                let bufferList = UnsafeMutableAudioBufferListPointer(
+                let ablPtr = UnsafeMutableAudioBufferListPointer(
                     inputBuffer.data.assumingMemoryBound(to: AudioBufferList.self)
                 )
-                guard bufferList.count > 0 else { continue }
-                var audioBuffer = bufferList[0]
-                guard let mData = audioBuffer.mData else { continue }
+                guard ablPtr.count > 0, let mData = ablPtr[0].mData else { continue }
 
                 (packet.data as NSData).getBytes(mData, length: packetSize)
-                audioBuffer.mDataByteSize = UInt32(packetSize)
+                // Must write back via subscript — AudioBuffer is a value type.
+                ablPtr[0] = AudioBuffer(
+                    mNumberChannels: ablPtr[0].mNumberChannels,
+                    mDataByteSize: UInt32(packetSize),
+                    mData: mData
+                )
                 inputBuffer.packetCount = 1
                 if let desc = packet.packetDescription {
                     inputBuffer.packetDescriptions?.pointee = desc
@@ -393,7 +397,10 @@ class AudioEngine: ObservableObject {
                     }
                 }
 
-                if status == .error || conversionError != nil {
+                if status == .error {
+                    if let err = conversionError {
+                        print("🔴 AudioEngine: conversion error: \(err)")
+                    }
                     continue
                 }
 
@@ -403,6 +410,7 @@ class AudioEngine: ObservableObject {
                 // Start the node on first buffer
                 if !streamNode.isPlaying {
                     streamNode.play()
+                    print("🎵 AudioEngine: stream playback started")
                     DispatchQueue.main.async { [weak self] in
                         self?.isPlaying = true
                         self?.playState = .playing
