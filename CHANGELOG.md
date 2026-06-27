@@ -36,6 +36,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   hinted substitute. Fonts now use SF Pro system APIs (including monospaced
   digits for bitrate), which are readable down to 6 pt.
 
+- **Menu bar shows real titles instead of "NSMenuItem".*** The top-level
+  menus were created without titles, so AppKit displayed the class name.
+  They now read **Wamp**, **File**, **Edit**, **Controls**, and **View**.
+
+### Added
+
+- **Check for Updates** under the Wamp menu. The app queries GitHub Releases
+  for the latest tag, compares it to the running version, and shows an alert
+  with release notes plus an "Open Releases Page" button when a newer version
+  is available.
+
 ## [1.2.1] - 2026-06-26
 
 ### Fixed

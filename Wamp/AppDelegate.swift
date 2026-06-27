@@ -222,6 +222,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // App
         let about = item("About Wamp", #selector(showAboutPanel), "", symbol: "info.circle")
+        let checkForUpdates = item("Check for Updates…",
+                                   #selector(checkForUpdatesAction),
+                                   "",
+                                   symbol: "arrow.clockwise")
         let quit = item("Quit Wamp", #selector(NSApplication.terminate(_:)), "q", symbol: "power")
 
         // File
@@ -282,7 +286,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let unloadSkin = item("Unload Skin", #selector(unloadSkinAction), "", symbol: "paintpalette.fill")
 
         return AppMenuItems(
-            app: [about, .separator(), quit],
+            app: [about, .separator(), checkForUpdates, .separator(), quit],
             file: [openFile, openFolder, .separator(), importMusic],
             edit: [selectAll],
             controls: [playPause, stop, next, prev, .separator(),
@@ -325,10 +329,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.doubleSizeMenuItem = items.doubleSizeItem
 
         let mainMenu = NSMenu()
-        for group in [items.app, items.file, items.edit, items.controls, items.view] {
+        let groups = [items.app, items.file, items.edit, items.controls, items.view]
+        let titles = ["Wamp", "File", "Edit", "Controls", "View"]
+        for (group, title) in zip(groups, titles) {
             let submenu = NSMenu()
             group.forEach { submenu.addItem($0) }
-            let top = NSMenuItem()
+            let top = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             top.submenu = submenu
             mainMenu.addItem(top)
         }
@@ -365,6 +371,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Valerii Bakalenko and AL Biheiri."
         ])
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func checkForUpdatesAction() {
+        UpdateChecker().checkForUpdates()
     }
 
     @objc private func openFileAction() {
