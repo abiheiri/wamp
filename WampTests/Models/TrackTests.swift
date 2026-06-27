@@ -14,6 +14,15 @@ struct TrackTests {
             .appendingPathComponent("Fixtures/sample.m4a")
     }
 
+    @Test func fallbackBitrate_computesFromFileSizeAndDuration() {
+        // 1 MiB file over 10 seconds → 8_388_608 bits / 10 s ≈ 838 kbps.
+        #expect(Track.fallbackBitrate(fileSize: 1_048_576, duration: 10) == 838)
+        // Zero duration returns nil to avoid division by zero.
+        #expect(Track.fallbackBitrate(fileSize: 1_048_576, duration: 0) == nil)
+        // Zero file size returns nil.
+        #expect(Track.fallbackBitrate(fileSize: 0, duration: 10) == nil)
+    }
+
     @Test func fromURL_parsesMetadataTags() async {
         let track = await Track.fromURL(fixtureURL())
         #expect(track.title == "Wamp Fixture Title")
