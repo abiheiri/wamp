@@ -46,10 +46,9 @@ class WinampButton: NSView {
            let provide = spriteKeyProvider,
            let sprite = WinampTheme.sprite(provide(isActive, isPressed)) {
             let ctx = NSGraphicsContext.current
-            let prev = ctx?.imageInterpolation
             ctx?.imageInterpolation = .none
-            sprite.draw(in: bounds)
-            if let prev = prev { ctx?.imageInterpolation = prev }
+            ctx?.shouldAntialias = false
+            sprite.draw(in: backingAlignedRect(bounds, options: .alignAllEdgesNearest))
             return
         }
 

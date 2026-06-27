@@ -297,23 +297,28 @@ class MainPlayerView: NSView {
 
     private func drawSkinned() {
         let ctx = NSGraphicsContext.current
-        let prev = ctx?.imageInterpolation
+        let prevInterp = ctx?.imageInterpolation
+        let prevAA = ctx?.shouldAntialias
         ctx?.imageInterpolation = .none
-        defer { if let prev = prev { ctx?.imageInterpolation = prev } }
+        ctx?.shouldAntialias = false
+        defer {
+            if let v = prevInterp { ctx?.imageInterpolation = v }
+            if let v = prevAA { ctx?.shouldAntialias = v }
+        }
 
         // View is resized to 116 px (native main.bmp height) when skinned,
         // so the sprite fills bounds exactly and sub-sprite coordinates are
         // in the same space as Webamp's main-window.css.
         let mainHeight: CGFloat = bounds.height
         if let bg = WinampTheme.sprite(.mainBackground) {
-            bg.draw(in: bounds)
+            bg.draw(in: backingAlignedRect(bounds, options: .alignAllEdgesNearest))
         }
 
         // Title bar overlay (main.bmp leaves the top 14px empty for this).
         // Webamp y=0..14 (top-down) → AppKit y = mainHeight - 14.
         let isActive = window?.isKeyWindow ?? true
         if let tb = WinampTheme.sprite(isActive ? .titleBarActive : .titleBarInactive) {
-            tb.draw(in: NSRect(x: 0, y: mainHeight - 14, width: bounds.width, height: 14))
+            tb.draw(in: backingAlignedRect(NSRect(x: 0, y: mainHeight - 14, width: bounds.width, height: 14), options: .alignAllEdgesNearest))
         }
 
         // Mono / stereo sprites at fixed Webamp coordinates.
@@ -322,10 +327,10 @@ class MainPlayerView: NSView {
         let isStereo = playlistManager?.currentTrack?.isStereo ?? false
         let monoY: CGFloat = mainHeight - 41 - 12
         if let monoSprite = WinampTheme.sprite(.mono(active: !isStereo)) {
-            monoSprite.draw(in: NSRect(x: 212, y: monoY, width: 27, height: 12))
+            monoSprite.draw(in: backingAlignedRect(NSRect(x: 212, y: monoY, width: 27, height: 12), options: .alignAllEdgesNearest))
         }
         if let stereoSprite = WinampTheme.sprite(.stereo(active: isStereo)) {
-            stereoSprite.draw(in: NSRect(x: 239, y: monoY, width: 29, height: 12))
+            stereoSprite.draw(in: backingAlignedRect(NSRect(x: 239, y: monoY, width: 29, height: 12), options: .alignAllEdgesNearest))
         }
 
         // Bitrate / sample rate digits via text.bmp.

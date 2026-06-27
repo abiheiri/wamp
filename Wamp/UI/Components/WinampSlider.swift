@@ -67,41 +67,44 @@ class WinampSlider: NSView {
     private func drawSkinned() {
         let n = normalizedValue
         let ctx = NSGraphicsContext.current
-        let prev = ctx?.imageInterpolation
         ctx?.imageInterpolation = .none
-        defer { if let prev = prev { ctx?.imageInterpolation = prev } }
+        ctx?.shouldAntialias = false
+
+        let snap = { [self] (r: NSRect) -> NSRect in
+            backingAlignedRect(r, options: .alignAllEdgesNearest)
+        }
 
         switch style {
         case .seek:
             if let bg = WinampTheme.sprite(.seekBackground) {
-                bg.draw(in: bounds)
+                bg.draw(in: snap(bounds))
             }
             let thumbW: CGFloat = 29
             let thumbX = n * (bounds.width - thumbW)
             if let thumb = WinampTheme.sprite(.seekThumb(pressed: isUserInteracting)) {
-                thumb.draw(in: NSRect(x: thumbX, y: (bounds.height - 10) / 2, width: thumbW, height: 10))
+                thumb.draw(in: snap(NSRect(x: thumbX, y: (bounds.height - 10) / 2, width: thumbW, height: 10)))
             }
 
         case .volume:
             let position = Int((n * 27).rounded())
             if let bg = WinampTheme.sprite(.volumeBackground(position: position)) {
-                bg.draw(in: bounds)
+                bg.draw(in: snap(bounds))
             }
             let thumbW: CGFloat = 14
             let thumbX = n * (bounds.width - thumbW)
             if let thumb = WinampTheme.sprite(.volumeThumb(pressed: isUserInteracting)) {
-                thumb.draw(in: NSRect(x: thumbX, y: (bounds.height - 11) / 2, width: thumbW, height: 11))
+                thumb.draw(in: snap(NSRect(x: thumbX, y: (bounds.height - 11) / 2, width: thumbW, height: 11)))
             }
 
         case .balance:
             let position = Int((n * 27).rounded())
             if let bg = WinampTheme.sprite(.balanceBackground(position: position)) {
-                bg.draw(in: bounds)
+                bg.draw(in: snap(bounds))
             }
             let thumbW: CGFloat = 14
             let thumbX = n * (bounds.width - thumbW)
             if let thumb = WinampTheme.sprite(.balanceThumb(pressed: isUserInteracting)) {
-                thumb.draw(in: NSRect(x: thumbX, y: (bounds.height - 11) / 2, width: thumbW, height: 11))
+                thumb.draw(in: snap(NSRect(x: thumbX, y: (bounds.height - 11) / 2, width: thumbW, height: 11)))
             }
 
         case .eqBand:
@@ -109,11 +112,11 @@ class WinampSlider: NSView {
             // (position 0 = bottom/-12dB all green, 13 = top/+12dB all red).
             let bgPos = Int((n * 13).rounded())
             if let bg = WinampTheme.sprite(.eqSliderBackground(position: bgPos)) {
-                bg.draw(in: bounds)
+                bg.draw(in: snap(bounds))
             }
             let thumbY = n * (bounds.height - 11)
             if let thumb = WinampTheme.sprite(.eqSliderThumb(pressed: isUserInteracting)) {
-                thumb.draw(in: NSRect(x: (bounds.width - 11) / 2, y: thumbY, width: 11, height: 11))
+                thumb.draw(in: snap(NSRect(x: (bounds.width - 11) / 2, y: thumbY, width: 11, height: 11)))
             }
         }
     }

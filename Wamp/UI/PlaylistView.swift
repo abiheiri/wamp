@@ -306,63 +306,84 @@ class PlaylistView: NSView {
 
     private func drawSkinned() {
         let ctx = NSGraphicsContext.current
-        let prev = ctx?.imageInterpolation
+        let prevInterp = ctx?.imageInterpolation
+        let prevAA = ctx?.shouldAntialias
         ctx?.imageInterpolation = .none
-        defer { if let prev = prev { ctx?.imageInterpolation = prev } }
+        ctx?.shouldAntialias = false
+        defer {
+            if let v = prevInterp { ctx?.imageInterpolation = v }
+            if let v = prevAA { ctx?.shouldAntialias = v }
+        }
 
         let isActive = window?.isKeyWindow ?? true
         let w = bounds.width
         let h = bounds.height
 
+        // Helper: snap a rect to physical backing pixels so draws land on exact
+        // pixel boundaries regardless of the logical scale factor.
+        let snap = { [self] (r: NSRect) -> NSRect in
+            backingAlignedRect(r, options: .alignAllEdgesNearest)
+        }
+
         // Top row: TL corner (25×20) + repeating top tiles + title bar centerpiece + TR corner
         if let tl = WinampTheme.sprite(.playlistTopLeftCorner(active: isActive)) {
-            tl.draw(in: NSRect(x: 0, y: h - 20, width: 25, height: 20))
+            tl.draw(in: snap(NSRect(x: 0, y: h - 20, width: 25, height: 20)))
         }
         if let tr = WinampTheme.sprite(.playlistTopRightCorner(active: isActive)) {
-            tr.draw(in: NSRect(x: w - 25, y: h - 20, width: 25, height: 20))
+            tr.draw(in: snap(NSRect(x: w - 25, y: h - 20, width: 25, height: 20)))
         }
-        // Title centerpiece — fills the middle of the top row
+
+        // Title centerpiece — pixel-align its rect first, then tile the gaps
+        // edge-to-edge using the aligned boundaries as tile endpoints.
+        // This eliminates the seam that appears when titleX = (w-100)/2 = 87.5
+        // (a half-logical-pixel) is not aligned to a backing pixel.
         if let title = WinampTheme.sprite(.playlistTopTitleBar(active: isActive)) {
             let titleW: CGFloat = 100
-            let titleX = (w - titleW) / 2
-            title.draw(in: NSRect(x: titleX, y: h - 20, width: titleW, height: 20))
-            // Tile the gap between corners and title with .playlistTopTile
+            let titleRect = snap(NSRect(x: (w - titleW) / 2, y: h - 20, width: titleW, height: 20))
+            title.draw(in: titleRect)
+
             if let topTile = WinampTheme.sprite(.playlistTopTile(active: isActive)) {
+                // Left gap: TL corner end → title start
                 var x: CGFloat = 25
-                while x < titleX {
-                    topTile.draw(in: NSRect(x: x, y: h - 20, width: min(25, titleX - x), height: 20))
-                    x += 25
+                while x < titleRect.minX {
+                    let end = min(x + 25, titleRect.minX)
+                    topTile.draw(in: snap(NSRect(x: x, y: h - 20, width: end - x, height: 20)))
+                    x = end // use exact boundary, not accumulated addition
                 }
-                x = titleX + titleW
+                // Right gap: title end → TR corner start
+                x = titleRect.maxX
                 while x < w - 25 {
-                    topTile.draw(in: NSRect(x: x, y: h - 20, width: min(25, w - 25 - x), height: 20))
-                    x += 25
+                    let end = min(x + 25, w - 25)
+                    topTile.draw(in: snap(NSRect(x: x, y: h - 20, width: end - x, height: 20)))
+                    x = end
                 }
             }
         }
 
-        // Sides: tile vertically
+        // Sides: tile vertically, edge-to-edge
         if let lt = WinampTheme.sprite(.playlistLeftTile) {
             var y: CGFloat = 38
             while y < h - 20 {
-                lt.draw(in: NSRect(x: 0, y: y, width: 12, height: min(29, h - 20 - y)))
-                y += 29
+                let end = min(y + 29, h - 20)
+                lt.draw(in: snap(NSRect(x: 0, y: y, width: 12, height: end - y)))
+                y = end
             }
         }
         if let rt = WinampTheme.sprite(.playlistRightTile) {
             var y: CGFloat = 38
             while y < h - 20 {
-                rt.draw(in: NSRect(x: w - 20, y: y, width: 20, height: min(29, h - 20 - y)))
-                y += 29
+                let end = min(y + 29, h - 20)
+                rt.draw(in: snap(NSRect(x: w - 20, y: y, width: 20, height: end - y)))
+                y = end
             }
         }
 
         // Bottom row
         if let bl = WinampTheme.sprite(.playlistBottomLeftCorner) {
-            bl.draw(in: NSRect(x: 0, y: 0, width: 125, height: 38))
+            bl.draw(in: snap(NSRect(x: 0, y: 0, width: 125, height: 38)))
         }
         if let br = WinampTheme.sprite(.playlistBottomRightCorner) {
-            br.draw(in: NSRect(x: w - 150, y: 0, width: 150, height: 38))
+            br.draw(in: snap(NSRect(x: w - 150, y: 0, width: 150, height: 38)))
         }
 
         // The six mini-player buttons baked into the BR corner sprite
