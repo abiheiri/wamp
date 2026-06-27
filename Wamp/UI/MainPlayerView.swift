@@ -297,23 +297,28 @@ class MainPlayerView: NSView {
 
     private func drawSkinned() {
         let ctx = NSGraphicsContext.current
-        let prev = ctx?.imageInterpolation
+        let prevInterp = ctx?.imageInterpolation
+        let prevAA = ctx?.shouldAntialias
         ctx?.imageInterpolation = .none
-        defer { if let prev = prev { ctx?.imageInterpolation = prev } }
+        ctx?.shouldAntialias = false
+        defer {
+            if let v = prevInterp { ctx?.imageInterpolation = v }
+            if let v = prevAA { ctx?.shouldAntialias = v }
+        }
 
         // View is resized to 116 px (native main.bmp height) when skinned,
         // so the sprite fills bounds exactly and sub-sprite coordinates are
         // in the same space as Webamp's main-window.css.
         let mainHeight: CGFloat = bounds.height
         if let bg = WinampTheme.sprite(.mainBackground) {
-            bg.draw(in: bounds)
+            bg.draw(in: backingAlignedRect(bounds, options: .alignAllEdgesNearest))
         }
 
         // Title bar overlay (main.bmp leaves the top 14px empty for this).
         // Webamp y=0..14 (top-down) → AppKit y = mainHeight - 14.
         let isActive = window?.isKeyWindow ?? true
         if let tb = WinampTheme.sprite(isActive ? .titleBarActive : .titleBarInactive) {
-            tb.draw(in: NSRect(x: 0, y: mainHeight - 14, width: bounds.width, height: 14))
+            tb.draw(in: backingAlignedRect(NSRect(x: 0, y: mainHeight - 14, width: bounds.width, height: 14), options: .alignAllEdgesNearest))
         }
 
         // Mono / stereo sprites at fixed Webamp coordinates.
@@ -322,10 +327,10 @@ class MainPlayerView: NSView {
         let isStereo = playlistManager?.currentTrack?.isStereo ?? false
         let monoY: CGFloat = mainHeight - 41 - 12
         if let monoSprite = WinampTheme.sprite(.mono(active: !isStereo)) {
-            monoSprite.draw(in: NSRect(x: 212, y: monoY, width: 27, height: 12))
+            monoSprite.draw(in: backingAlignedRect(NSRect(x: 212, y: monoY, width: 27, height: 12), options: .alignAllEdgesNearest))
         }
         if let stereoSprite = WinampTheme.sprite(.stereo(active: isStereo)) {
-            stereoSprite.draw(in: NSRect(x: 239, y: monoY, width: 29, height: 12))
+            stereoSprite.draw(in: backingAlignedRect(NSRect(x: 239, y: monoY, width: 29, height: 12), options: .alignAllEdgesNearest))
         }
 
         // Bitrate / sample rate digits via text.bmp.
@@ -335,8 +340,8 @@ class MainPlayerView: NSView {
         if let textSheet = WinampTheme.provider.textSheet,
            let track = playlistManager?.currentTrack {
             let textY: CGFloat = mainHeight - 43 - 6
-            let bitrateStr = track.bitrate > 0 ? String(format: "%3d", track.bitrate) : "   "
-            let sampleStr = track.sampleRate > 0 ? String(format: "%2d", track.sampleRate / 1000) : "  "
+            let bitrateStr = track.bitrate > 0 ? String(format: "%3d", track.bitrate) : "---"
+            let sampleStr = track.sampleRate > 0 ? String(format: "%2d", track.sampleRate / 1000) : "--"
             TextSpriteRenderer.draw(bitrateStr, at: NSPoint(x: 111, y: textY), sheet: textSheet)
             TextSpriteRenderer.draw(sampleStr,  at: NSPoint(x: 156, y: textY), sheet: textSheet)
         }
@@ -554,12 +559,14 @@ class MainPlayerView: NSView {
         // Track info
         playlistManager.$currentIndex
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateTrackInfo()
-                // Skinned overlay reads track.bitrate / .sampleRate in drawSkinned —
-                // force a redraw so kbps/khz update on track change.
-                self?.needsDisplay = true
-            }
+            .sink { [weak self] _ in self?.updateTrackInfo() }
+            .store(in: &cancellables)
+
+        // Re-format the LCD title when a skin is loaded or unloaded, since
+        // skinned mode omits the track-number prefix and duration suffix.
+        SkinManager.shared.$currentSkin
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateTrackInfo() }
             .store(in: &cancellables)
 
         // Seek slider
@@ -668,13 +675,20 @@ class MainPlayerView: NSView {
             return
         }
         let index = (playlistManager?.currentIndex ?? 0) + 1
-        lcdDisplay.text = "\(index). \(track.displayTitle) (\(track.formattedDuration))"
+        // Skinned LCD is 6px-glyph text.bmp — just show the title.
+        // The track number is redundant (playlist shows it), and the duration
+        // is redundant (7-segment display shows it).
+        lcdDisplay.text = WinampTheme.skinIsActive
+            ? track.displayTitle
+            : "\(index). \(track.displayTitle) (\(track.formattedDuration))"
         bitrateLabel.stringValue = "\(track.bitrate > 0 ? "\(track.bitrate)" : "---")"
         bitrateLabel.textColor = WinampTheme.greenBright
         sampleRateLabel.stringValue = "\(track.sampleRate > 0 ? "\(track.sampleRate / 1000)" : "--")"
         sampleRateLabel.textColor = WinampTheme.greenBright
         stereoLabel.textColor = track.isStereo ? WinampTheme.greenBright : WinampTheme.greenDimText
         monoLabel.textColor = track.isStereo ? WinampTheme.greenDimText : WinampTheme.greenBright
+        // Force redraw so skinned kbps/khz text updates immediately.
+        needsDisplay = true
     }
 
     /// Persistent marquee for the active SHOUTcast stream, driven by the stream

@@ -103,13 +103,16 @@ final class WinampTheme {
     static let insetBorderLight = NSColor(hex: 0x4A4E58)
 
     // MARK: - Fonts
-    static let titleBarFont = NSFont(name: "Tahoma-Bold", size: 8) ?? NSFont.boldSystemFont(ofSize: 8)
-    static let trackTitleFont = NSFont(name: "Tahoma", size: 9) ?? NSFont.systemFont(ofSize: 9)
-    static let bitrateFont = NSFont(name: "Tahoma", size: 7) ?? NSFont.systemFont(ofSize: 7)
-    static let smallLabelFont = NSFont(name: "Tahoma", size: 6) ?? NSFont.systemFont(ofSize: 6)
-    static let buttonFont = NSFont(name: "Tahoma-Bold", size: 7) ?? NSFont.boldSystemFont(ofSize: 7)
-    static let playlistFont = NSFont(name: "ArialMT", size: 8.5) ?? NSFont.systemFont(ofSize: 8.5)
-    static let eqLabelFont = NSFont(name: "Tahoma", size: 6) ?? NSFont.systemFont(ofSize: 6)
+    // Tahoma and ArialMT are Windows/Office fonts not shipped with macOS — trying
+    // them always fell through to Helvetica Neue, which has poor hinting at 6–9 pt.
+    // SF Pro (via system font APIs) has excellent optical sizing at all small sizes.
+    static let titleBarFont = NSFont.boldSystemFont(ofSize: 8)
+    static let trackTitleFont = NSFont.systemFont(ofSize: 9, weight: .medium)
+    static let bitrateFont = NSFont.monospacedDigitSystemFont(ofSize: 7, weight: .regular)
+    static let smallLabelFont = NSFont.systemFont(ofSize: 6)
+    static let buttonFont = NSFont.boldSystemFont(ofSize: 7)
+    static let playlistFont = NSFont.systemFont(ofSize: 9)
+    static let eqLabelFont = NSFont.systemFont(ofSize: 6)
 
     // MARK: - Scale
     static let baseScale: CGFloat = 1.3

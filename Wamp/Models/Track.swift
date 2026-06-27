@@ -86,6 +86,13 @@ struct Track: Identifiable, Codable, Equatable {
         )
     }
 
+    /// `estimatedDataRate` is unreliable for FLAC, WAV, AIFF, and VBR MP3 —
+    /// it returns 0 for those formats. Fall back to file size ÷ duration.
+    static func fallbackBitrate(fileSize: Int64, duration: TimeInterval) -> Int? {
+        guard duration > 0, fileSize > 0 else { return nil }
+        return Int(Double(fileSize * 8) / (duration * 1000))
+    }
+
     @MainActor
     static func fromURL(_ url: URL) async -> Track {
         let asset = AVURLAsset(url: url)
@@ -136,8 +143,16 @@ struct Track: Identifiable, Codable, Equatable {
                         channels = Int(asbd.mChannelsPerFrame)
                     }
                 }
+                // estimatedDataRate is unreliable for FLAC, WAV, AIFF, and VBR MP3 —
+                // it returns 0 for those formats. Fall back to file size ÷ duration.
                 let estimatedRate = try await audioTrack.load(.estimatedDataRate)
-                bitrate = Int(estimatedRate / 1000)
+                if estimatedRate > 0 {
+                    bitrate = Int(estimatedRate / 1000)
+                } else if duration > 0,
+                          let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                          fileSize > 0 {
+                    bitrate = Int(Double(fileSize * 8) / (duration * 1000))
+                }
             }
         } catch {
             // Fallback: use filename as title

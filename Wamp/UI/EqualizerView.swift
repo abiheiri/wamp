@@ -189,20 +189,25 @@ class EqualizerView: NSView {
         }
         guard WinampTheme.skinIsActive else { return }
         let ctx = NSGraphicsContext.current
-        let prev = ctx?.imageInterpolation
+        let prevInterp = ctx?.imageInterpolation
+        let prevAA = ctx?.shouldAntialias
         ctx?.imageInterpolation = .none
-        defer { if let prev = prev { ctx?.imageInterpolation = prev } }
+        ctx?.shouldAntialias = false
+        defer {
+            if let v = prevInterp { ctx?.imageInterpolation = v }
+            if let v = prevAA { ctx?.shouldAntialias = v }
+        }
 
         if let bg = WinampTheme.sprite(.eqBackground) {
             // eqmain.bmp is 275×116; view is resized to 116 when skinned so the
             // sprite fills bounds exactly and sub-sprite coords match Webamp.
-            bg.draw(in: bounds)
+            bg.draw(in: backingAlignedRect(bounds, options: .alignAllEdgesNearest))
         }
 
         // Title bar overlay (y=0..14 of the EQ body is left empty for this).
         let isActive = window?.isKeyWindow ?? true
         if let tb = WinampTheme.sprite(.eqTitleBar(active: isActive)) {
-            tb.draw(in: NSRect(x: 0, y: bounds.height - 14, width: bounds.width, height: 14))
+            tb.draw(in: backingAlignedRect(NSRect(x: 0, y: bounds.height - 14, width: bounds.width, height: 14), options: .alignAllEdgesNearest))
         }
     }
 
