@@ -355,10 +355,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         credits.append(NSAttributedString(string: "Built with Swift\n\n", attributes: body))
         let linkAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11),
-            .link: URL(string: "https://github.com/wishval/wamp") as Any,
+            .link: URL(string: "https://github.com/abiheiri/wamp") as Any,
             .foregroundColor: NSColor.linkColor
         ]
-        credits.append(NSAttributedString(string: "GitHub: https://github.com/wishval/wamp",
+        credits.append(NSAttributedString(string: "GitHub: https://github.com/abiheiri/wamp",
                                           attributes: linkAttrs))
 
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"

@@ -138,7 +138,7 @@ Plus hardware **media keys** (play/pause, next, previous) and the macOS
 **Requirements:** macOS 26.3+, Xcode 26+
 
 ```bash
-git clone https://github.com/wishval/wamp.git
+git clone https://github.com/abiheiri/wamp.git
 cd wamp
 
 # Build

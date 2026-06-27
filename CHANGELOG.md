@@ -47,6 +47,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with release notes plus an "Open Releases Page" button when a newer version
   is available.
 
+### Changed
+
+- **Repository URLs now point to `abiheiri/wamp`.** The README clone URL,
+  the About panel link, and the main-player GitHub hit-zone were still
+  referencing the original `wishval/wamp` fork.
+
 ## [1.2.1] - 2026-06-26
 
 ### Fixed
