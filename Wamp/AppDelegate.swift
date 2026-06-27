@@ -325,10 +325,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.doubleSizeMenuItem = items.doubleSizeItem
 
         let mainMenu = NSMenu()
-        for group in [items.app, items.file, items.edit, items.controls, items.view] {
+        let groups = [items.app, items.file, items.edit, items.controls, items.view]
+        let titles = ["Wamp", "File", "Edit", "Controls", "View"]
+        for (group, title) in zip(groups, titles) {
             let submenu = NSMenu()
             group.forEach { submenu.addItem($0) }
-            let top = NSMenuItem()
+            let top = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             top.submenu = submenu
             mainMenu.addItem(top)
         }
