@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **60 fps spectrum analyzer with gravity peaks.** The visualization now
+  animates smoothly on its own timer instead of jumping with each audio
+  buffer, with fast attack / slow decay bars and falling peak caps that
+  hold briefly before accelerating downward — closer to classic Winamp.
+
+### Fixed
+
+- **Skin scaling artifacts on Retina displays.** All skin sprite drawing
+  now disables antialiasing, sets nearest-neighbor interpolation, and
+  pixel-snaps every rect to physical backing pixels. Playlist top/side
+  tiling is edge-to-edge so seams no longer appear at fractional scales,
+  and the main window region mask renders at the display's backing scale.
+
+- **Skinned LCD title is clean and placeholders are explicit.** In skinned
+  mode the scrolling title shows only the track name (the playlist and
+  7-segment display already show number and duration). Missing bitrate /
+  sample rate now render as `---` / `--` instead of blank space, and the
+  title re-formats immediately when a skin is loaded or unloaded.
+
+- **Bitrate no longer reads 0 for FLAC, WAV, AIFF, and some VBR MP3s.**
+  When `AVAssetTrack.estimatedDataRate` returns 0, Wamp now falls back to
+  `fileSize * 8 / duration` so the kbps display works for those formats.
+
+- **Small system fonts render cleanly on macOS.** The previous Tahoma /
+  ArialMT fallbacks aren't shipped with macOS and fell through to a poorly
+  hinted substitute. Fonts now use SF Pro system APIs (including monospaced
+  digits for bitrate), which are readable down to 6 pt.
+
 ## [1.2.1] - 2026-06-26
 
 ### Fixed
