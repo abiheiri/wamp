@@ -3,48 +3,87 @@ import Combine
 
 class SpectrumView: NSView {
     var spectrumData: [Float] = [] {
-        didSet {
-            updatePeaks()
-            needsDisplay = true
-        }
+        didSet { targetData = spectrumData }
     }
     var barCount: Int = 26
 
     /// Winamp convention: 16 vertical rows, each painted with viscolors[2..17] bottom→top.
     private static let rowCount = 16
 
-    /// Per-bar peak position (0...rowCount), decays 1 row per spectrumData update.
-    private var peaks: [CGFloat] = []
-
+    private var targetData: [Float] = []
+    private var smoothedData: [Float] = []
+    private var peakRows: [Float] = []
+    private var peakHoldCounters: [Int] = []
+    private var peakVelocities: [Float] = []
+    private var animationTimer: Timer?
     private var skinObserver: AnyCancellable?
+
+    // Fast attack, slow decay — classic Winamp feel
+    private let riseCoeff: Float = 0.50
+    private let fallCoeff: Float = 0.07
+
+    // Peak cap: hold briefly, then fall with gravity (in row units)
+    private let peakHoldFrames = 15
+    private let peakGravity: Float = 0.02
+    private let peakMaxVelocity: Float = 0.50
 
     override init(frame: NSRect) {
         super.init(frame: frame)
+        setup()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    private func setup() {
         wantsLayer = true
         layer?.masksToBounds = true
         skinObserver = SkinManager.shared.$currentSkin
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.needsDisplay = true }
+        resetArrays()
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
     }
-    required init?(coder: NSCoder) { fatalError() }
 
-    private func updatePeaks() {
-        if peaks.count != barCount { peaks = Array(repeating: 0, count: barCount) }
-        let rows = CGFloat(Self.rowCount)
+    private func resetArrays() {
+        smoothedData = Array(repeating: 0, count: barCount)
+        peakRows = Array(repeating: 0, count: barCount)
+        peakHoldCounters = Array(repeating: 0, count: barCount)
+        peakVelocities = Array(repeating: 0, count: barCount)
+    }
+
+    private func tick() {
+        if smoothedData.count != barCount { resetArrays() }
+        let input = targetData
+        let rows = Float(Self.rowCount)
         for i in 0..<barCount {
-            let dataIndex = i < spectrumData.count ? i : 0
-            let amplitude = spectrumData.isEmpty ? Float(0) : min(1, spectrumData[dataIndex] * 10)
-            let barRows = CGFloat(amplitude) * rows
-            if barRows >= peaks[i] {
-                peaks[i] = barRows
+            let srcIdx = input.isEmpty ? 0 : min(i * input.count / barCount, input.count - 1)
+            let target = input.isEmpty ? Float(0) : min(1, input[srcIdx] * 10)
+            let cur = smoothedData[i]
+            smoothedData[i] = target > cur
+                ? cur + (target - cur) * riseCoeff
+                : cur + (target - cur) * fallCoeff
+
+            let barRowsF = smoothedData[i] * rows
+            if barRowsF >= peakRows[i] {
+                peakRows[i] = barRowsF
+                peakHoldCounters[i] = peakHoldFrames
+                peakVelocities[i] = 0
+            } else if peakHoldCounters[i] > 0 {
+                peakHoldCounters[i] -= 1
             } else {
-                peaks[i] = max(0, peaks[i] - 0.35) // falloff rate
+                peakVelocities[i] = min(peakMaxVelocity, peakVelocities[i] + peakGravity)
+                peakRows[i] = max(0, peakRows[i] - peakVelocities[i])
             }
         }
+        needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
+        guard smoothedData.count == barCount else { return }
 
         let barWidth: CGFloat = 3
         let gap: CGFloat = 1
@@ -54,15 +93,10 @@ class SpectrumView: NSView {
 
         let viscolors = WinampTheme.provider.viscolors
         guard viscolors.count >= 24 else { return }
-
-        // Row colors: viscolors[2..17], bottom → top.
-        // Peak cap: viscolors[23] per Winamp convention.
         let peakColor = viscolors[23]
 
         for i in 0..<totalBars {
-            let dataIndex = i < spectrumData.count ? i : 0
-            let amplitude = spectrumData.isEmpty ? Float(0) : min(1, spectrumData[dataIndex] * 10)
-            let litRows = Int(CGFloat(amplitude) * CGFloat(rows))
+            let litRows = Int(smoothedData[i] * Float(rows))
             let x = CGFloat(i) * (barWidth + gap)
 
             // Discrete 16-step bar
@@ -75,16 +109,18 @@ class SpectrumView: NSView {
             }
 
             // Peak cap
-            if i < peaks.count {
-                let peakRow = Int(peaks[i])
-                if peakRow > litRows && peakRow < rows {
-                    peakColor.setFill()
-                    NSRect(x: x,
-                           y: CGFloat(peakRow) * rowHeight,
-                           width: barWidth,
-                           height: rowHeight).fill()
-                }
+            let peakRow = Int(peakRows[i])
+            if peakRow > litRows && peakRow < rows {
+                peakColor.setFill()
+                NSRect(x: x,
+                       y: CGFloat(peakRow) * rowHeight,
+                       width: barWidth,
+                       height: rowHeight).fill()
             }
         }
+    }
+
+    deinit {
+        animationTimer?.invalidate()
     }
 }
