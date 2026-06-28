@@ -754,6 +754,13 @@ class PlaylistView: NSView {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(menuItem("Jump to File…", action: #selector(miscJumpToFile)))
 
+        // Only shown when the active section is filtered — the discoverable way to
+        // clear a Jump-to-File filter, especially in skinned mode where there's no
+        // visible search field to empty.
+        if let clearTitle = activeFilterClearTitle() {
+            menu.addItem(menuItem(clearTitle, action: #selector(miscClearFilter)))
+        }
+
         popUpMenu(menu, for: .misc)
     }
 
@@ -803,6 +810,27 @@ class PlaylistView: NSView {
             return
         }
         window?.makeFirstResponder(searchField)
+    }
+
+    /// "Clear Filter" item title for the active section if a search filter is
+    /// active (with a "showing N of M" hint), or nil to hide the item.
+    private func activeFilterClearTitle() -> String? {
+        if mode == .radio {
+            guard let rm = radioManager, !rm.searchQuery.isEmpty else { return nil }
+            return "Clear Filter (showing \(rm.filteredStations.count) of \(rm.stations.count))"
+        }
+        guard let pm = playlistManager, !pm.searchQuery.isEmpty else { return nil }
+        return "Clear Filter (showing \(pm.filteredTracks.count) of \(pm.tracks.count))"
+    }
+
+    @objc private func miscClearFilter() {
+        if mode == .radio {
+            radioManager?.searchQuery = ""
+        } else {
+            playlistManager?.searchQuery = ""
+        }
+        searchField.stringValue = ""   // keep the inline field (unskinned) in sync
+        tableView.reloadData()
     }
 
     private func menuItem(_ title: String, action: Selector) -> NSMenuItem {
