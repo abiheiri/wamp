@@ -28,6 +28,9 @@ class PlaylistView: NSView {
     private weak var radioManager: RadioManager?
     private enum PanelMode { case playlist, radio }
     private var mode: PanelMode = .playlist
+    /// Whether the panel is currently showing the Radio tab — used by Cmd+J to
+    /// open the finder on the matching section.
+    var isShowingRadio: Bool { mode == .radio }
     private let playlistTab = WinampButton(title: "PLAYLIST", style: .toggle)
     private let radioTab = WinampButton(title: "RADIO", style: .toggle)
     private let genreButton = WinampButton(title: "GENRE \u{25BE}", style: .action)
@@ -812,6 +815,13 @@ class PlaylistView: NSView {
     /// type-to-find. In skinned mode there's no visible field, so we show the
     /// field temporarily by ignoring skin visibility for this one control.
     @objc private func miscJumpToFile() {
+        // Section-aware: on the Radio tab, "Jump to File" is a directory-wide
+        // search, so route to the Cmd+J finder (it opens on the Radio tab since
+        // the panel is showing radio). Playlist keeps its inline-filter behavior.
+        if mode == .radio {
+            (NSApp.delegate as? AppDelegate)?.presentJumpToFileWindow()
+            return
+        }
         if WinampTheme.skinIsActive {
             // Skinned mode has no persistent search UI. Fall back to a prompt.
             let alert = NSAlert()

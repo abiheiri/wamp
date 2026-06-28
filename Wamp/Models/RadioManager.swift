@@ -118,6 +118,15 @@ final class RadioManager: ObservableObject {
         isLoading = false
     }
 
+    /// Directory-wide search that returns results without mutating the panel's
+    /// station list or status. Used by the Cmd+J finder so its Radio tab stays
+    /// ephemeral (the panel keeps showing whatever genre you were browsing).
+    func searchStations(_ query: String) async throws -> [ShoutcastStation] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+        return try await client.search(q)
+    }
+
     // MARK: - Genre tree (lazy, cached, with fallback)
 
     /// Loads the genre tree the first time the Radio tab is opened: disk cache for

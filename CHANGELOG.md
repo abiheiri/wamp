@@ -4,7 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.2.3] - 2026-06-26
+
+### Added
+
+- **Jump-to (Cmd+J) now has Playlist and Radio tabs.** The finder opens on
+  the section you're viewing. The Playlist tab filters local tracks as
+  before; the new Radio tab searches the entire SHOUTcast directory (a
+  debounced network search) and plays the picked station. The search is
+  ephemeral — it doesn't disturb the genre list you were browsing in the
+  panel. On the Radio tab, the playlist MISC ▸ Jump to File item opens this
+  same directory search instead of the local-only filter.
+
+- **Favorite SHOUTcast stations.** Right-click any station to add or remove
+  it from a saved favorites list that persists across launches. A
+  "★ Favorites" entry at the top of the genre menu opens them for quick
+  access, so stations you like aren't lost between genre browses.
 
 ### Fixed
 
@@ -13,13 +28,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   MISC menu now shows a "Clear Filter (showing N of M)" item whenever the
   active section (playlist or radio) is filtered, which restores the full
   list.
-
-### Added
-
-- **Favorite SHOUTcast stations.** Right-click any station to add or remove
-  it from a saved favorites list that persists across launches. A
-  "★ Favorites" entry at the top of the genre menu opens them for quick
-  access, so stations you like aren't lost between genre browses.
 
 ## [1.2.2] - 2026-06-26
 
