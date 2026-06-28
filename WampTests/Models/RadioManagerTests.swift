@@ -56,4 +56,27 @@ struct RadioManagerTests {
     @Test func adjacent_emptyList_returnsNil() {
         #expect(RadioManager.adjacentStation(to: nil, in: [], offset: 1) == nil)
     }
+
+    // MARK: - Favorites toggle
+
+    @Test func toggleFavorites_addsWhenAbsent() {
+        let result = RadioManager.toggledFavorites([station(1, "A")], toggling: station(2, "B"))
+        #expect(result.map(\.id) == [1, 2])
+    }
+
+    @Test func toggleFavorites_removesWhenPresent() {
+        let list = [station(1, "A"), station(2, "B"), station(3, "C")]
+        #expect(RadioManager.toggledFavorites(list, toggling: station(2, "B")).map(\.id) == [1, 3])
+    }
+
+    @Test func toggleFavorites_matchesById_notIdentity() {
+        // Same id, different name/bitrate still toggles off.
+        let list = [station(7, "Original Name")]
+        let result = RadioManager.toggledFavorites(list, toggling: station(7, "Different Name"))
+        #expect(result.isEmpty)
+    }
+
+    @Test func toggleFavorites_emptyList_adds() {
+        #expect(RadioManager.toggledFavorites([], toggling: station(1, "A")).map(\.id) == [1])
+    }
 }
