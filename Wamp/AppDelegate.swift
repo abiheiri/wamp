@@ -606,7 +606,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.jumpDelegate = self
             jumpToFileWindow = panel
         }
-        jumpToFileWindow?.present(over: mainWindow)
+        jumpToFileWindow?.radioManager = radioManager
+        jumpToFileWindow?.present(over: mainWindow, startInRadio: mainWindow.playlistView.isShowingRadio)
     }
 
     private func installJumpToFileShortcut() {
