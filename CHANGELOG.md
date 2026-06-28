@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Favorite SHOUTcast stations.** Right-click any station to add or remove
+  it from a saved favorites list that persists across launches. A
+  "★ Favorites" entry at the top of the genre menu opens them for quick
+  access, so stations you like aren't lost between genre browses.
+
 ## [1.2.2] - 2026-06-26
 
 ### Added
