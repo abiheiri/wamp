@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-06-26
+
 ### Added
 
 - **Jump-to (Cmd+J) now has Playlist and Radio tabs.** The finder opens on
@@ -15,6 +17,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   ephemeral — it doesn't disturb the genre list you were browsing in the
   panel. On the Radio tab, the playlist MISC ▸ Jump to File item opens this
   same directory search instead of the local-only filter.
+
+- **Favorite SHOUTcast stations.** Right-click any station to add or remove
+  it from a saved favorites list that persists across launches. A
+  "★ Favorites" entry at the top of the genre menu opens them for quick
+  access, so stations you like aren't lost between genre browses.
+
+### Fixed
+
+- **Skinned playlist filter can now be cleared.** Using MISC ▸ Jump to File
+  in skinned mode filtered the list with no visible way to reset it. The
+  MISC menu now shows a "Clear Filter (showing N of M)" item whenever the
+  active section (playlist or radio) is filtered, which restores the full
+  list.
 
 ## [1.2.2] - 2026-06-26
 
