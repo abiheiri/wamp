@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Skinned playlist filter can now be cleared.** Using MISC ▸ Jump to File
+  in skinned mode filtered the list with no visible way to reset it. The
+  MISC menu now shows a "Clear Filter (showing N of M)" item whenever the
+  active section (playlist or radio) is filtered, which restores the full
+  list.
+
 ### Added
 
 - **Favorite SHOUTcast stations.** Right-click any station to add or remove
