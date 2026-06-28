@@ -15,6 +15,9 @@ final class RadioManager: ObservableObject {
     /// Main/sub genre tree for the picker. Starts with the bundled defaults so the
     /// menu is never empty, then upgrades to the live (or cached) directory tree.
     @Published private(set) var genres: [ShoutcastGenre] = ShoutcastGenre.bundledDefaults
+    /// User-saved stations, persisted to disk and shown via the genre menu's
+    /// "★ Favorites" entry.
+    @Published private(set) var favorites: [ShoutcastStation] = []
 
     private weak var audioEngine: AudioEngine?
     private let client: ShoutcastDirectoryAPI
@@ -22,14 +25,20 @@ final class RadioManager: ObservableObject {
     /// True once a live genre fetch has succeeded this session (skip re-fetching).
     private var hasLiveGenres = false
     private var isLoadingGenres = false
+    /// Whether the station list is currently showing favorites (vs a genre/search),
+    /// so removing a favorite refreshes the view in place.
+    private var viewingFavorites = false
 
-    /// On-disk cache of the last good genre tree, in the same dir as other state.
-    private let genreCacheURL: URL = FileManager.default
+    private static let appDir: URL = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        .appendingPathComponent("Wamp/genres.json")
+        .appendingPathComponent("Wamp")
+    /// On-disk cache of the last good genre tree, in the same dir as other state.
+    private let genreCacheURL = RadioManager.appDir.appendingPathComponent("genres.json")
+    private let favoritesURL = RadioManager.appDir.appendingPathComponent("favorites.json")
 
     init(client: ShoutcastDirectoryAPI = ShoutcastDirectoryClient()) {
         self.client = client
+        favorites = loadFavorites()
     }
 
     func setAudioEngine(_ engine: AudioEngine) {
@@ -77,6 +86,7 @@ final class RadioManager: ObservableObject {
     func loadGenre(_ genre: String) async {
         guard !isLoading else { return }
         isLoading = true
+        viewingFavorites = false
         statusMessage = "Loading \(genre)…"
         do {
             stations = try await client.browseByGenre(genre)
@@ -93,6 +103,7 @@ final class RadioManager: ObservableObject {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, !isLoading else { return }
         isLoading = true
+        viewingFavorites = false
         // A directory-wide search returns its own result set — clear the local
         // text filter so those results aren't narrowed again by the typed query.
         searchQuery = ""
@@ -145,6 +156,55 @@ final class RadioManager: ObservableObject {
         try? FileManager.default.createDirectory(
             at: genreCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: genreCacheURL)
+    }
+
+    // MARK: - Favorites
+
+    /// Pure add-or-remove by station id (toggle semantics) — unit-tested.
+    static func toggledFavorites(_ favorites: [ShoutcastStation],
+                                 toggling station: ShoutcastStation) -> [ShoutcastStation] {
+        if favorites.contains(where: { $0.id == station.id }) {
+            return favorites.filter { $0.id != station.id }
+        }
+        return favorites + [station]
+    }
+
+    func isFavorite(_ station: ShoutcastStation) -> Bool {
+        favorites.contains { $0.id == station.id }
+    }
+
+    /// Add the station to favorites, or remove it if already saved. Persists, and
+    /// refreshes the list in place when the favorites view is showing.
+    @MainActor
+    func toggleFavorite(_ station: ShoutcastStation) {
+        favorites = Self.toggledFavorites(favorites, toggling: station)
+        saveFavorites(favorites)
+        if viewingFavorites {
+            stations = favorites
+            statusMessage = favorites.isEmpty ? "No favorites yet" : "\(favorites.count) favorites"
+        }
+    }
+
+    /// Show the saved favorites in the station list.
+    @MainActor
+    func showFavorites() {
+        viewingFavorites = true
+        searchQuery = ""
+        stations = favorites
+        statusMessage = favorites.isEmpty ? "No favorites yet" : "\(favorites.count) favorites"
+    }
+
+    private func loadFavorites() -> [ShoutcastStation] {
+        guard let data = try? Data(contentsOf: favoritesURL),
+              let list = try? JSONDecoder().decode([ShoutcastStation].self, from: data) else { return [] }
+        return list
+    }
+
+    private func saveFavorites(_ list: [ShoutcastStation]) {
+        guard let data = try? JSONEncoder().encode(list) else { return }
+        try? FileManager.default.createDirectory(
+            at: favoritesURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: favoritesURL)
     }
 
     // MARK: - Playback

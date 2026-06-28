@@ -202,6 +202,15 @@ class PlaylistView: NSView {
     /// GENRE button and the skinned RADIO tab. Genre name rides in representedObject.
     private func buildGenreMenu() -> NSMenu {
         let menu = NSMenu()
+
+        // Saved favorites sit at the very top, above the genre tree.
+        let favCount = radioManager?.favorites.count ?? 0
+        let favItem = NSMenuItem(title: "★ Favorites (\(favCount))",
+                                 action: #selector(showFavoritesAction), keyEquivalent: "")
+        favItem.target = self
+        menu.addItem(favItem)
+        menu.addItem(.separator())
+
         let tree = radioManager?.genres ?? ShoutcastGenre.bundledDefaults
         for main in tree {
             let item = NSMenuItem(title: main.name, action: nil, keyEquivalent: "")
@@ -238,6 +247,16 @@ class PlaylistView: NSView {
     @objc private func genreMenuPick(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String, let rm = radioManager else { return }
         Task { @MainActor in await rm.loadGenre(name) }
+    }
+
+    @objc private func showFavoritesAction() {
+        guard let rm = radioManager else { return }
+        Task { @MainActor in rm.showFavorites() }
+    }
+
+    @objc private func toggleFavoriteAction(_ sender: NSMenuItem) {
+        guard let station = sender.representedObject as? ShoutcastStation, let rm = radioManager else { return }
+        Task { @MainActor in rm.toggleFavorite(station) }
     }
 
     // Skinned PLAYLIST | RADIO tab strip geometry (built once, used by both
@@ -842,7 +861,20 @@ class PlaylistView: NSView {
     /// Build a right-click context menu for a playlist row. Returns nil if no
     /// row-specific actions apply (letting the table fall back to its default menu).
     private func contextMenu(for row: Int) -> NSMenu? {
-        guard mode == .playlist else { return nil }
+        // Radio rows: offer add/remove from favorites for the station under the cursor.
+        if mode == .radio {
+            guard let rm = radioManager else { return nil }
+            let list = rm.filteredStations
+            guard row >= 0, row < list.count else { return nil }
+            let station = list[row]
+            let menu = NSMenu()
+            let item = NSMenuItem(title: rm.isFavorite(station) ? "Remove from Favorites" : "Add to Favorites",
+                                  action: #selector(toggleFavoriteAction(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = station
+            menu.addItem(item)
+            return menu
+        }
         // Table rows show displayedTracks (search-filtered) — indexing the
         // unfiltered model here would target the wrong track while filtering.
         let tracks = displayedTracks
