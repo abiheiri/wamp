@@ -63,7 +63,7 @@ final class UpdateChecker {
     private func showUpdateAvailableAlert(release: GitHubRelease, currentVersion: String) {
         let alert = NSAlert()
         alert.messageText = "Wamp \(release.tagName) is available"
-        alert.informativeText = "You are currently running Wamp \(currentVersion).\n\n\(release.name)\n\n\(release.body)"
+        alert.informativeText = "You are currently running Wamp \(currentVersion).\n\n\(release.body)"
         alert.alertStyle = .informational
 
         let openPageButton = alert.addButton(withTitle: "Open Releases Page")
