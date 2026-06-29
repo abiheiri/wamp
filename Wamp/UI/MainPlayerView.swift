@@ -7,6 +7,7 @@ class MainPlayerView: NSView {
     // Callbacks
     var onToggleEQ: (() -> Void)?
     var onTogglePL: (() -> Void)?
+    var onWindowShade: (() -> Void)?
 
     var isEQActive: Bool {
         get { eqButton.isActive }
@@ -15,6 +16,18 @@ class MainPlayerView: NSView {
     var isPLActive: Bool {
         get { plButton.isActive }
         set { plButton.isActive = newValue }
+    }
+
+    /// When true the player collapses to the windowshade strip: the body is
+    /// hidden and only a title bar with a scrolling title, compact time, and
+    /// mini seek remains. Driven by `MainWindow.windowShade`.
+    var isWindowShade: Bool = false {
+        didSet {
+            guard isWindowShade != oldValue else { return }
+            applyVisibility()
+            needsLayout = true
+            needsDisplay = true
+        }
     }
 
     // Subviews
@@ -49,9 +62,10 @@ class MainPlayerView: NSView {
     // Play state indicator
     private let playIndicator = PlayStateIndicator()
 
-    // Invisible click hit-zones for close/minimize/menu when skinned (replace hidden titleBar)
+    // Invisible click hit-zones for close/minimize/shade/menu when skinned (replace hidden titleBar)
     private let closeHitZone = NSView()
     private let minimizeHitZone = NSView()
+    private let shadeHitZone = NSView()
     private let menuHitZone = NSView()
     // Click target over the Nullsoft logo baked into main.bmp, right of the repeat button.
     private let githubHitZone = NSView()
@@ -70,7 +84,8 @@ class MainPlayerView: NSView {
     /// lay out subviews at the sprite's native pixel coordinates. When no skin
     /// is loaded, we use Wamp's original 126 px layout.
     var desiredHeight: CGFloat {
-        WinampTheme.skinIsActive ? 116 : WinampTheme.mainPlayerHeight
+        if isWindowShade { return WinampTheme.shadeHeight }
+        return WinampTheme.skinIsActive ? 116 : WinampTheme.mainPlayerHeight
     }
 
     override init(frame: NSRect) {
@@ -81,11 +96,11 @@ class MainPlayerView: NSView {
         skinObserver = SkinManager.shared.$currentSkin
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.applySkinVisibility()
+                self?.applyVisibility()
                 self?.needsDisplay = true
                 self?.needsLayout = true
             }
-        applySkinVisibility()
+        applyVisibility()
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -96,6 +111,7 @@ class MainPlayerView: NSView {
         titleBar.showButtons = true
         titleBar.onClose = { NSApp.terminate(nil) }
         titleBar.onMinimize = { [weak self] in self?.window?.miniaturize(nil) }
+        titleBar.onWindowShade = { [weak self] in self?.onWindowShade?() }
         titleBar.onMenuClick = { [weak self] in self?.showWindowMenu() }
         addSubview(titleBar)
 
@@ -247,12 +263,15 @@ class MainPlayerView: NSView {
         // these buttons so the user can still interact with them).
         addSubview(closeHitZone)
         addSubview(minimizeHitZone)
+        addSubview(shadeHitZone)
         addSubview(menuHitZone)
         addSubview(githubHitZone)
         let closeClick = NSClickGestureRecognizer(target: self, action: #selector(handleSkinnedClose))
         closeHitZone.addGestureRecognizer(closeClick)
         let minimizeClick = NSClickGestureRecognizer(target: self, action: #selector(handleSkinnedMinimize))
         minimizeHitZone.addGestureRecognizer(minimizeClick)
+        let shadeClick = NSClickGestureRecognizer(target: self, action: #selector(handleSkinnedShade))
+        shadeHitZone.addGestureRecognizer(shadeClick)
         let menuClick = NSClickGestureRecognizer(target: self, action: #selector(handleSkinnedMenu))
         menuHitZone.addGestureRecognizer(menuClick)
         let githubClick = NSClickGestureRecognizer(target: self, action: #selector(handleOpenGitHub))
@@ -261,6 +280,7 @@ class MainPlayerView: NSView {
 
     @objc private func handleSkinnedClose() { NSApp.terminate(nil) }
     @objc private func handleSkinnedMinimize() { window?.miniaturize(nil) }
+    @objc private func handleSkinnedShade() { onWindowShade?() }
     @objc private func handleSkinnedMenu() { showWindowMenu() }
     @objc private func handleOpenGitHub() {
         if let url = URL(string: "https://github.com/abiheiri/wamp") {
@@ -268,25 +288,49 @@ class MainPlayerView: NSView {
         }
     }
 
-    /// Hides NSTextField labels and helper NSViews whose visual content is baked
-    /// into main.bmp / monoster.bmp / text.bmp when a skin is loaded. See spec §8.
-    private func applySkinVisibility() {
-        let active = WinampTheme.skinIsActive
-        titleBar.isHidden = active
-        titleBar.showMenuIcon = !active
-        leftPanel.isHidden = active
-        rightPanel.isHidden = active
-        bitrateLabel.isHidden = active
-        sampleRateLabel.isHidden = active
-        bitrateUnitLabel.isHidden = active
-        sampleRateUnitLabel.isHidden = active
-        monoLabel.isHidden = active
-        stereoLabel.isHidden = active
-        playIndicator.isHidden = active
-        closeHitZone.isHidden = !active
-        minimizeHitZone.isHidden = !active
-        menuHitZone.isHidden = !active
-        githubHitZone.isHidden = !active
+    /// Resolves subview visibility from two axes: whether a skin is loaded
+    /// (chrome baked into main.bmp / monoster.bmp / text.bmp is hidden — spec §8)
+    /// and whether the window is collapsed to the shade strip (the whole body is
+    /// hidden, leaving only the title bar + scrolling title / time / mini seek).
+    private func applyVisibility() {
+        let skin = WinampTheme.skinIsActive
+        let shade = isWindowShade
+
+        // Unskinned title-bar chrome. In shade it becomes the collapsed strip.
+        titleBar.isHidden = skin
+        titleBar.showMenuIcon = !skin
+        titleBar.compactStrip = shade
+
+        // Body controls — present only in the full (non-shade) player.
+        spectrumView.isHidden = shade
+        volumeSlider.isHidden = shade
+        balanceSlider.isHidden = shade
+        seekSlider.isHidden = shade
+        transportBar.isHidden = shade
+        shuffleButton.isHidden = shade
+        repeatButton.isHidden = shade
+        eqButton.isHidden = shade
+        plButton.isHidden = shade
+
+        // Skin-baked chrome — hidden when skinned, and also while shaded.
+        leftPanel.isHidden = skin || shade
+        rightPanel.isHidden = skin || shade
+        for label in [bitrateLabel, sampleRateLabel, bitrateUnitLabel, sampleRateUnitLabel, monoLabel, stereoLabel] {
+            label.isHidden = skin || shade
+        }
+        playIndicator.isHidden = skin || shade
+
+        // The scrolling title and time appear in both the full player and the
+        // shade strip, so they stay visible in every mode.
+        lcdDisplay.isHidden = false
+        timeDisplay.isHidden = false
+
+        // Skinned-mode click hit-zones (the title bar is hidden when skinned).
+        closeHitZone.isHidden = !skin
+        minimizeHitZone.isHidden = !skin
+        shadeHitZone.isHidden = !skin
+        menuHitZone.isHidden = !skin
+        githubHitZone.isHidden = !skin || shade
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -305,6 +349,8 @@ class MainPlayerView: NSView {
             if let v = prevInterp { ctx?.imageInterpolation = v }
             if let v = prevAA { ctx?.shouldAntialias = v }
         }
+
+        if isWindowShade { drawSkinnedShade(); return }
 
         // View is resized to 116 px (native main.bmp height) when skinned,
         // so the sprite fills bounds exactly and sub-sprite coordinates are
@@ -349,11 +395,75 @@ class MainPlayerView: NSView {
 
     override func layout() {
         super.layout()
-        if WinampTheme.skinIsActive {
+        if isWindowShade {
+            layoutShade()
+        } else if WinampTheme.skinIsActive {
             layoutSkinned()
         } else {
             layoutUnskinned()
         }
+    }
+
+    /// The recessed black readout inset of the skinned shade strip. Sits between
+    /// the left options button and the right min/shade/close cluster, covering
+    /// the skin's baked title/logo so it doesn't compete with our overlays.
+    private func shadeReadoutPanel() -> NSRect {
+        // Right edge butts against the baked minimize button (x≈243) so no
+        // baked title-bar decoration peeks through beside the button cluster.
+        NSRect(x: 16, y: (bounds.height - 10) / 2, width: 226, height: 10)
+    }
+
+    /// Draws the collapsed windowshade strip when a skin is active. Uses the
+    /// normal (decorated) title bar so its baked-in window buttons — including
+    /// the windowshade button — keep their usual bitmaps, then lays a recessed
+    /// black panel over the center for the scrolling title + time subviews.
+    private func drawSkinnedShade() {
+        let isActive = window?.isKeyWindow ?? true
+        WinampTheme.sprite(isActive ? .titleBarActive : .titleBarInactive)?
+            .draw(in: backingAlignedRect(bounds, options: .alignAllEdgesNearest))
+
+        NSColor.black.setFill()
+        shadeReadoutPanel().fill()
+    }
+
+    /// Lays out the collapsed strip. Unskinned, the title bar draws the chrome +
+    /// buttons and the scrolling title / time overlay it directly. Skinned, the
+    /// readout sits inside the recessed panel and invisible hit-zones cover the
+    /// title bar's baked min / windowshade / close buttons.
+    private func layoutShade() {
+        let w = bounds.width
+        let h = bounds.height
+
+        titleBar.frame = NSRect(x: 0, y: 0, width: w, height: h)
+
+        if WinampTheme.skinIsActive {
+            let panel = shadeReadoutPanel()
+            let timeW: CGFloat = 42, timeH: CGFloat = 9
+            let timeX = panel.maxX - timeW - 2
+            timeDisplay.frame = NSRect(x: timeX, y: (h - timeH) / 2, width: timeW, height: timeH)
+            timeDisplay.layer?.backgroundColor = NSColor.clear.cgColor
+
+            let titleX = panel.minX + 4
+            lcdDisplay.frame = NSRect(x: titleX, y: (h - 7) / 2, width: max(10, timeX - titleX - 6), height: 7)
+
+            // Hit-zones over the baked min / windowshade / close buttons.
+            let by = (h - 9) / 2
+            minimizeHitZone.frame = NSRect(x: 243, y: by, width: 11, height: 9)
+            shadeHitZone.frame    = NSRect(x: 254, y: by, width: 9,  height: 9)
+            closeHitZone.frame    = NSRect(x: 263, y: by, width: 11, height: 9)
+            menuHitZone.frame     = NSRect(x: 6, y: by, width: 9, height: 9)
+        } else {
+            let buttonsLeft = w - 36
+            let menuLeft: CGFloat = 12  // clear the unskinned menu icon at x≈3–12
+            let timeW: CGFloat = 34, timeH: CGFloat = 9
+            let timeX = buttonsLeft - timeW - 2
+            timeDisplay.frame = NSRect(x: timeX, y: (h - timeH) / 2, width: timeW, height: timeH)
+            timeDisplay.layer?.backgroundColor = NSColor.black.cgColor
+
+            let titleW = max(10, timeX - menuLeft - 6)
+            lcdDisplay.frame = NSRect(x: menuLeft, y: (h - 9) / 2, width: titleW, height: 9)
+        }
+        githubHitZone.frame = .zero
     }
 
     /// Exact Winamp 2.x pixel coordinates, ported from Webamp's main-window.css.
@@ -365,10 +475,12 @@ class MainPlayerView: NSView {
         // Title bar (hidden, but keep frame valid)
         titleBar.frame = NSRect(x: 0, y: h - 16, width: bounds.width, height: 16)
 
-        // Close / minimize hit-zones — webamp close(264,3,9×9), min(244,3,9×9)
+        // Close / windowshade / minimize hit-zones — webamp close(264,3), shade(254,3),
+        // min(244,3), each 9×9. The shade zone sits between min and close.
         let hitSize: CGFloat = 11
         let hitY = h - 3 - hitSize
         closeHitZone.frame = NSRect(x: 263, y: hitY, width: hitSize, height: hitSize)
+        shadeHitZone.frame = NSRect(x: 254, y: hitY, width: 9, height: hitSize)
         minimizeHitZone.frame = NSRect(x: 243, y: hitY, width: hitSize, height: hitSize)
 
         // Menu icon hit-zone — webamp top-left icon at (6, 3, 9×9)

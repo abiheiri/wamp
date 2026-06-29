@@ -6,8 +6,13 @@ class TitleBarView: NSView {
     var showButtons: Bool = true
     var onClose: (() -> Void)?
     var onMinimize: (() -> Void)?
+    var onWindowShade: (() -> Void)?
     var onMenuClick: (() -> Void)?
     var showMenuIcon: Bool = false { didSet { needsDisplay = true } }
+    /// When true the bar drops its centered title + side stripes so the
+    /// collapsed windowshade strip can overlay a scrolling title / time / seek.
+    /// The window buttons and menu icon still draw.
+    var compactStrip: Bool = false { didSet { needsDisplay = true } }
 
     private let menuIconSize: CGFloat = 9
     private var menuIconRect: NSRect {
@@ -65,53 +70,58 @@ class TitleBarView: NSView {
         ])
         gradient?.draw(in: b, angle: 90)
 
-        // Calculate text width
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: WinampTheme.titleBarFont,
-            .foregroundColor: WinampTheme.titleBarText
-        ]
-        let textSize = titleText.size(withAttributes: attrs)
-        let textX = (b.width - textSize.width) / 2
-        let textY = (b.height - textSize.height) / 2
+        // Centered title + side stripes — suppressed in the collapsed shade
+        // strip, which overlays its own scrolling title / time / seek instead.
+        if !compactStrip {
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: WinampTheme.titleBarFont,
+                .foregroundColor: WinampTheme.titleBarText
+            ]
+            let textSize = titleText.size(withAttributes: attrs)
+            let textX = (b.width - textSize.width) / 2
+            let textY = (b.height - textSize.height) / 2
 
-        // Draw stripes on both sides
-        let stripeMargin: CGFloat = 4
-        let stripeGap: CGFloat = 4
+            // Draw stripes on both sides
+            let stripeMargin: CGFloat = 4
+            let stripeGap: CGFloat = 4
 
-        // Left stripes — shift start past the menu icon when present
-        let leftStripeStart: CGFloat = showMenuIcon ? (menuIconRect.maxX + 2) : stripeMargin
-        drawStripes(in: NSRect(
-            x: leftStripeStart,
-            y: (b.height - 8) / 2,
-            width: max(0, textX - stripeGap - leftStripeStart),
-            height: 8
-        ))
-
-        // Right stripes
-        let rightStart = textX + textSize.width + stripeGap
-        let rightEnd = showButtons ? b.width - 30 : b.width - stripeMargin
-        if rightEnd > rightStart {
+            // Left stripes — shift start past the menu icon when present
+            let leftStripeStart: CGFloat = showMenuIcon ? (menuIconRect.maxX + 2) : stripeMargin
             drawStripes(in: NSRect(
-                x: rightStart,
+                x: leftStripeStart,
                 y: (b.height - 8) / 2,
-                width: rightEnd - rightStart,
+                width: max(0, textX - stripeGap - leftStripeStart),
                 height: 8
             ))
+
+            // Right stripes
+            let rightStart = textX + textSize.width + stripeGap
+            let rightEnd = showButtons ? b.width - 41 : b.width - stripeMargin
+            if rightEnd > rightStart {
+                drawStripes(in: NSRect(
+                    x: rightStart,
+                    y: (b.height - 8) / 2,
+                    width: rightEnd - rightStart,
+                    height: 8
+                ))
+            }
+
+            // Title text
+            titleText.draw(at: NSPoint(x: textX, y: textY), withAttributes: attrs)
         }
 
-        // Title text
-        titleText.draw(at: NSPoint(x: textX, y: textY), withAttributes: attrs)
-
-        // Window buttons (close + minimize). Pin button removed — always-on-top
-        // moved to View → Always on Top menu (see AppDelegate).
+        // Window buttons — order [minimize] [windowshade] [close], matching
+        // classic Winamp. Pin button removed — always-on-top moved to
+        // View → Always on Top menu (see AppDelegate).
         if showButtons {
             let btnSize: CGFloat = 9
             let btnY = (b.height - btnSize) / 2
 
             drawWindowButton(
-                NSRect(x: b.width - 22, y: btnY, width: btnSize, height: btnSize),
+                NSRect(x: b.width - 33, y: btnY, width: btnSize, height: btnSize),
                 symbol: "−"
             )
+            drawShadeButton(NSRect(x: b.width - 22, y: btnY, width: btnSize, height: btnSize))
             drawWindowButton(
                 NSRect(x: b.width - 11, y: btnY, width: btnSize, height: btnSize),
                 symbol: "×"
@@ -202,22 +212,36 @@ class TitleBarView: NSView {
         )
     }
 
+    /// Windowshade toggle button — same chrome as the others, with a small
+    /// horizontal bar glyph suggesting the window rolling up to a strip.
+    private func drawShadeButton(_ rect: NSRect) {
+        drawWindowButton(rect, symbol: "")
+        WinampTheme.titleBarText.setFill()
+        NSRect(x: rect.minX + 2, y: rect.midY - 0.5, width: rect.width - 4, height: 1.5).fill()
+    }
+
     // MARK: - Window dragging
     private var dragOrigin: NSPoint?
 
+    /// Button hit-rects in view space, left → right: minimize, windowshade, close.
+    private func buttonRects() -> (minimize: NSRect, shade: NSRect, close: NSRect) {
+        let b = bounds
+        let s: CGFloat = 9
+        let y = (b.height - s) / 2
+        return (NSRect(x: b.width - 33, y: y, width: s, height: s),
+                NSRect(x: b.width - 22, y: y, width: s, height: s),
+                NSRect(x: b.width - 11, y: y, width: s, height: s))
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        let b = bounds
-        let btnSize: CGFloat = 9
-        let btnY = (b.height - btnSize) / 2
-        let minimizeRect = NSRect(x: b.width - 22, y: btnY, width: btnSize, height: btnSize)
-        let closeRect = NSRect(x: b.width - 11, y: btnY, width: btnSize, height: btnSize)
+        let rects = buttonRects()
 
         if showMenuIcon && menuIconRect.contains(point) {
             onMenuClick?()
             return
         }
-        if showButtons && (closeRect.contains(point) || minimizeRect.contains(point)) {
+        if showButtons && (rects.close.contains(point) || rects.shade.contains(point) || rects.minimize.contains(point)) {
             super.mouseDown(with: event)
             return
         }
@@ -240,16 +264,13 @@ class TitleBarView: NSView {
         dragOrigin = nil
         guard showButtons else { return }
         let point = convert(event.locationInWindow, from: nil)
-        let b = bounds
-        let btnSize: CGFloat = 9
-        let btnY = (b.height - btnSize) / 2
+        let rects = buttonRects()
 
-        let minimizeRect = NSRect(x: b.width - 22, y: btnY, width: btnSize, height: btnSize)
-        let closeRect = NSRect(x: b.width - 11, y: btnY, width: btnSize, height: btnSize)
-
-        if closeRect.contains(point) {
+        if rects.close.contains(point) {
             onClose?()
-        } else if minimizeRect.contains(point) {
+        } else if rects.shade.contains(point) {
+            onWindowShade?()
+        } else if rects.minimize.contains(point) {
             onMinimize?()
         }
     }

@@ -65,6 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindow.playlistView.onMiniEject = { [weak self] in self?.openFileAction() }
         mainWindow.showEqualizer = appState.showEqualizer
         mainWindow.showPlaylist = appState.showPlaylist
+        mainWindow.windowShade = appState.windowShade
         mainWindow.alwaysOnTop = appState.alwaysOnTop
         mainWindow.equalizerView.autoMode = eqState.autoMode
 
@@ -108,6 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             y: mainWindow.frame.origin.y,
             showEQ: mainWindow.showEqualizer,
             showPlaylist: mainWindow.showPlaylist,
+            windowShade: mainWindow.windowShade,
             alwaysOnTop: mainWindow.alwaysOnTop,
             audioEngine: audioEngine,
             playlistManager: playlistManager
@@ -194,6 +196,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var doubleSize: Bool
         var eqVisible: Bool
         var playlistVisible: Bool
+        var windowShade: Bool
     }
 
     /// Result of building one set of menu items. Callers wrap these into the
@@ -282,6 +285,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                               symbol: "arrow.up.left.and.arrow.down.right")
         doubleSize.keyEquivalentModifierMask = [.command, .shift]
         doubleSize.state = state.doubleSize ? .on : .off
+        let windowShade = item("Windowshade", #selector(toggleWindowShade), "w", symbol: "rectangle.compress.vertical")
+        windowShade.keyEquivalentModifierMask = [.control]
+        windowShade.state = state.windowShade ? .on : .off
         let loadSkin = item("Load Skin…", #selector(loadSkinAction), "S", symbol: "paintpalette")
         loadSkin.keyEquivalentModifierMask = [.command, .shift]
         let unloadSkin = item("Unload Skin", #selector(unloadSkinAction), "", symbol: "paintpalette.fill")
@@ -293,7 +299,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             controls: [playPause, stop, next, prev, .separator(),
                        repeat_, shuffle, .separator(), jump],
             view: [showPlayer, showEQ, showPL, .separator(),
-                   alwaysOnTop, doubleSize, .separator(),
+                   alwaysOnTop, doubleSize, windowShade, .separator(),
                    loadSkin, unloadSkin],
             alwaysOnTopItem: alwaysOnTop,
             doubleSizeItem: doubleSize
@@ -305,7 +311,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             alwaysOnTop: mainWindow?.alwaysOnTop ?? false,
             doubleSize: WinampTheme.scale > WinampTheme.baseScale + 0.01,
             eqVisible: mainWindow?.showEqualizer ?? false,
-            playlistVisible: mainWindow?.showPlaylist ?? false
+            playlistVisible: mainWindow?.showPlaylist ?? false,
+            windowShade: mainWindow?.windowShade ?? false
         )
     }
 
@@ -502,6 +509,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleEQ() { mainWindow.showEqualizer.toggle() }
     @objc private func togglePL() { mainWindow.showPlaylist.toggle() }
 
+    @objc func toggleWindowShade() {
+        mainWindow.toggleWindowShade()
+        var state = stateManager.loadAppState()
+        state.windowShade = mainWindow.windowShade
+        stateManager.saveAppState(state)
+    }
+
     @objc private func toggleAlwaysOnTop() {
         mainWindow.alwaysOnTop.toggle()
         alwaysOnTopMenuItem?.state = mainWindow.alwaysOnTop ? .on : .off
@@ -640,6 +654,8 @@ extension AppDelegate: NSMenuItemValidation {
             menuItem.state = (mainWindow?.alwaysOnTop ?? false) ? .on : .off
         case #selector(toggleDoubleSize):
             menuItem.state = (WinampTheme.scale > WinampTheme.baseScale + 0.01) ? .on : .off
+        case #selector(toggleWindowShade):
+            menuItem.state = (mainWindow?.windowShade ?? false) ? .on : .off
         case #selector(importFromMusicLibraryAction):
             return importMusicController == nil
         default:

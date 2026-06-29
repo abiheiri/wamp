@@ -11,19 +11,38 @@ class MainWindow: NSWindow {
 
     var showEqualizer: Bool = true {
         didSet {
-            equalizerView.isHidden = !showEqualizer
             mainPlayerView.isEQActive = showEqualizer
+            updateSectionVisibility()
             recalculateSize()
         }
     }
 
     var showPlaylist: Bool = true {
         didSet {
-            playlistView.isHidden = !showPlaylist
             mainPlayerView.isPLActive = showPlaylist
+            updateSectionVisibility()
             recalculateSize()
         }
     }
+
+    /// Windowshade: collapse the whole window to just the title-bar strip,
+    /// hiding the player body, EQ, and playlist. The EQ/playlist *intent*
+    /// (showEqualizer/showPlaylist) is preserved and restored on un-shade.
+    var windowShade: Bool = false {
+        didSet {
+            guard windowShade != oldValue else { return }
+            mainPlayerView.isWindowShade = windowShade
+            updateSectionVisibility()
+            recalculateSize()
+        }
+    }
+
+    private func updateSectionVisibility() {
+        equalizerView.isHidden = windowShade || !showEqualizer
+        playlistView.isHidden = windowShade || !showPlaylist
+    }
+
+    func toggleWindowShade() { windowShade.toggle() }
 
     var alwaysOnTop: Bool = false {
         didSet {
@@ -79,14 +98,14 @@ class MainWindow: NSWindow {
         mainPlayerView.frame = NSRect(x: 0, y: y, width: w, height: mainH)
 
         // Equalizer — below player
-        if showEqualizer {
+        if showEqualizer && !windowShade {
             let eqH = equalizerView.desiredHeight
             y -= eqH
             equalizerView.frame = NSRect(x: 0, y: y, width: w, height: eqH)
         }
 
         // Playlist — fills remaining space
-        if showPlaylist {
+        if showPlaylist && !windowShade {
             let playlistHeight = y
             playlistView.frame = NSRect(x: 0, y: 0, width: w, height: playlistHeight)
         }
@@ -94,8 +113,10 @@ class MainWindow: NSWindow {
 
     func recalculateSize() {
         var height: CGFloat = mainPlayerView.desiredHeight
-        if showEqualizer { height += equalizerView.desiredHeight }
-        if showPlaylist { height += WinampTheme.playlistMinHeight }
+        if !windowShade {
+            if showEqualizer { height += equalizerView.desiredHeight }
+            if showPlaylist { height += WinampTheme.playlistMinHeight }
+        }
 
         let s = WinampTheme.scale
         let scaledWidth = (WinampTheme.windowWidth * s).rounded()
@@ -185,6 +206,9 @@ class MainWindow: NSWindow {
         }
         mainPlayerView.onTogglePL = { [weak self] in
             self?.showPlaylist.toggle()
+        }
+        mainPlayerView.onWindowShade = { [weak self] in
+            self?.toggleWindowShade()
         }
     }
 
