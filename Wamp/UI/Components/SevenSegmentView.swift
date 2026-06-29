@@ -40,9 +40,12 @@ class SevenSegmentView: NSView {
             return
         }
 
-        let digitWidth: CGFloat = 14
-        let colonWidth: CGFloat = 6
+        // Digit metrics scale with height so the display shrinks cleanly in the
+        // collapsed windowshade strip. Ratios are calibrated to reproduce the
+        // original 14×23 digit / 6px colon at the full-size display height.
         let digitHeight = bounds.height
+        let digitWidth = digitHeight * 0.6
+        let colonWidth = digitHeight * 0.26
 
         // Layout: M : S S (or MM : SS if >= 10 min). Clamp at 99 like the
         // skinned path — `minutes / 10` past 100 isn't a drawable digit and
@@ -79,9 +82,12 @@ class SevenSegmentView: NSView {
     private func drawSkinned(minutes: Int, seconds: Int) {
         let mm = min(99, minutes)
         let digits = [mm / 10, mm % 10, seconds / 10, seconds % 10]
-        // Local x offsets inside a 59-wide #time container (Webamp CSS).
-        let xs: [CGFloat] = [9, 21, 39, 51]
-        let size = NSSize(width: 9, height: 13)
+        // Local x offsets inside a 59-wide #time container (Webamp CSS). Native
+        // glyphs are 9×13; scale everything by the frame height so the time
+        // shrinks to fit the collapsed windowshade strip (no-op at full size).
+        let scale = bounds.height / 13
+        let xs: [CGFloat] = [9 * scale, 21 * scale, 39 * scale, 51 * scale]
+        let size = NSSize(width: 9 * scale, height: 13 * scale)
         let ctx = NSGraphicsContext.current
         let prev = ctx?.imageInterpolation
         ctx?.imageInterpolation = .none

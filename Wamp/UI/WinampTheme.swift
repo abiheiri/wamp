@@ -124,5 +124,9 @@ final class WinampTheme {
     static let equalizerHeight: CGFloat = 112
     static let playlistMinHeight: CGFloat = 232
     static let titleBarHeight: CGFloat = 16
+    /// Height of the collapsed windowshade strip (the whole window rolls up to
+    /// just this). 14px matches Winamp's main-window shade title bar; the
+    /// unskinned strip uses the same height for a consistent collapsed footprint.
+    static let shadeHeight: CGFloat = 14
     static let transportButtonSize = NSSize(width: 22, height: 18)
 }
