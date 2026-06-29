@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **Windowshade mode.** A new title-bar button (and View → Windowshade, or
-  Ctrl+W) rolls the whole window up to a compact title strip that keeps a
+  Cmd+Shift+W) rolls the whole window up to a compact title strip that keeps a
   scrolling track title, a time readout, and a mini seek bar — click again to
   restore the full player. Works skinned and unskinned, and the collapsed
   state is remembered across launches. The title-bar buttons are now ordered
