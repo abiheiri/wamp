@@ -286,7 +286,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         doubleSize.keyEquivalentModifierMask = [.command, .shift]
         doubleSize.state = state.doubleSize ? .on : .off
         let windowShade = item("Windowshade", #selector(toggleWindowShade), "w", symbol: "rectangle.compress.vertical")
-        windowShade.keyEquivalentModifierMask = [.control]
+        windowShade.keyEquivalentModifierMask = [.command, .shift]
         windowShade.state = state.windowShade ? .on : .off
         let loadSkin = item("Load Skin…", #selector(loadSkinAction), "S", symbol: "paintpalette")
         loadSkin.keyEquivalentModifierMask = [.command, .shift]
