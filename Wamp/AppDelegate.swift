@@ -226,6 +226,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                    #selector(checkForUpdatesAction),
                                    "",
                                    symbol: "arrow.clockwise")
+        let hide = item("Hide Wamp", #selector(NSApplication.hide(_:)), "h", symbol: "eye.slash")
         let quit = item("Quit Wamp", #selector(NSApplication.terminate(_:)), "q", symbol: "power")
 
         // File
@@ -286,7 +287,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let unloadSkin = item("Unload Skin", #selector(unloadSkinAction), "", symbol: "paintpalette.fill")
 
         return AppMenuItems(
-            app: [about, .separator(), checkForUpdates, .separator(), quit],
+            app: [about, .separator(), checkForUpdates, .separator(), hide, quit],
             file: [openFile, openFolder, .separator(), importMusic],
             edit: [selectAll],
             controls: [playPause, stop, next, prev, .separator(),
