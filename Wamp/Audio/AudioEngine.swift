@@ -128,6 +128,10 @@ class AudioEngine: ObservableObject {
     private var streamSourceNode: AVAudioPlayerNode?
     private var streamOutputFormat: AVAudioFormat?
     private var isStreaming = false
+    /// Bumped on every stopStream/playStream. Parser callbacks capture the value
+    /// at setup and ignore themselves if it changed — so a previous stream's late
+    /// (e.g. cancelled) callbacks can't disturb the current one.
+    private var streamGeneration: UInt64 = 0
 
     private var effectiveVolume: Float {
         // Preamp is folded in so volume/mute changes don't silently wipe it.
@@ -372,6 +376,7 @@ class AudioEngine: ObservableObject {
         streamNowPlaying = ""
         streamErrorText = ""
         streamPhase = .connecting
+        let streamGen = streamGeneration
 
         // Create and attach a dedicated node for streaming. It joins the shared
         // sourceMixer on its own input bus — never the EQ directly — so the local
@@ -399,7 +404,7 @@ class AudioEngine: ObservableObject {
         streamParser = parser
 
         parser.onFormatReady = { [weak self] format in
-            guard let self, self.isStreaming else { return }
+            guard let self, self.streamGeneration == streamGen, self.isStreaming else { return }
             guard let outputFormat = self.streamOutputFormat else { return }
 
             debugLog("🎵 AudioEngine: stream format ready — \(format)")
@@ -408,7 +413,7 @@ class AudioEngine: ObservableObject {
         }
 
         parser.onPackets = { [weak self] packets in
-            guard let self, self.isStreaming,
+            guard let self, self.streamGeneration == streamGen, self.isStreaming,
                   let converter = self.streamConverter,
                   let outputFormat = self.streamOutputFormat,
                   let streamNode = self.streamSourceNode else { return }
@@ -498,7 +503,7 @@ class AudioEngine: ObservableObject {
         }
 
         parser.onMetadata = { [weak self] metadata in
-            guard let self, self.isStreaming else { return }
+            guard let self, self.streamGeneration == streamGen, self.isStreaming else { return }
             if !metadata.streamTitle.isEmpty {
                 debugLog("🎵 Now Playing: \(metadata.streamTitle)")
                 self.streamNowPlaying = metadata.streamTitle
@@ -508,7 +513,10 @@ class AudioEngine: ObservableObject {
         parser.onError = { [weak self] error in
             debugLog("🔴 AudioEngine: stream error: \(error)")
             DispatchQueue.main.async {
-                self?.handleStreamError(error)
+                // Ignore a superseded stream's late (e.g. cancelled) error so it
+                // can't tear down the stream that replaced it.
+                guard let self, self.streamGeneration == streamGen else { return }
+                self.handleStreamError(error)
             }
         }
 
@@ -519,6 +527,7 @@ class AudioEngine: ObservableObject {
 
     /// Stop the active stream and clean up streaming resources.
     func stopStream() {
+        streamGeneration &+= 1
         isStreaming = false
         streamParser?.stop()
         streamParser = nil

@@ -238,8 +238,12 @@ final class RadioManager: ObservableObject {
             } else {
                 url = try await client.getStreamURL(for: station.id)
             }
+            // A newer click may have superseded this one while the URL resolved
+            // (obscure stations resolve slowly) — don't let a stale request win.
+            guard currentStationID == station.id else { return }
             audioEngine?.playStream(url: url)
         } catch {
+            guard currentStationID == station.id else { return }
             audioEngine?.reportStreamFailure("Couldn't connect to \(station.name)")
         }
     }
