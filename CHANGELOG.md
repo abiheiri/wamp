@@ -15,11 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **Switching radio stations no longer plays the wrong one.** Rapidly picking
-  stations (especially slow/obscure ones) could leave the previous station
-  playing while the title showed the new one, with repeated stop/cancel churn.
-  A superseded-click guard and a per-stream generation token now ensure only
-  the latest pick plays and stale stream callbacks are ignored.
+- **Hardened rapid radio-station switching against races.** Quickly switching
+  stations could let an earlier, slow-to-resolve pick override a later one, and
+  a previous stream's late (cancelled) callbacks could disturb the current
+  stream. A superseded-click guard and a per-stream generation token now ensure
+  only the latest pick plays and stale stream callbacks are ignored.
 
 ### Changed
 
