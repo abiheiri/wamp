@@ -833,31 +833,46 @@ class PlaylistView: NSView {
     /// Classic Winamp's Ctrl+J — focuses the search field so the user can
     /// type-to-find. In skinned mode there's no visible field, so we show the
     /// field temporarily by ignoring skin visibility for this one control.
+    /// MISC ▸ Jump to File. A small prompt in both sections: on the playlist it
+    /// filters the local list; on radio it runs a directory-wide search whose
+    /// results populate the panel (like the inline search field's Enter).
     @objc private func miscJumpToFile() {
-        // Section-aware: on the Radio tab, "Jump to File" is a directory-wide
-        // search, so route to the Cmd+J finder (it opens on the Radio tab since
-        // the panel is showing radio). Playlist keeps its inline-filter behavior.
         if mode == .radio {
-            (NSApp.delegate as? AppDelegate)?.presentJumpToFileWindow()
-            return
+            promptRadioSearch()
+        } else {
+            promptPlaylistJump()
         }
-        if WinampTheme.skinIsActive {
-            // Skinned mode has no persistent search UI. Fall back to a prompt.
-            let alert = NSAlert()
-            alert.messageText = "Jump to File"
-            alert.informativeText = "Type part of a title or artist to filter the list."
-            let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 22))
-            input.stringValue = playlistManager?.searchQuery ?? ""
-            alert.accessoryView = input
-            alert.addButton(withTitle: "Filter")
-            alert.addButton(withTitle: "Cancel")
-            if alert.runModal() == .alertFirstButtonReturn {
-                playlistManager?.searchQuery = input.stringValue
-                tableView.reloadData()
-            }
-            return
+    }
+
+    private func promptPlaylistJump() {
+        let alert = NSAlert()
+        alert.messageText = "Jump to File"
+        alert.informativeText = "Type part of a title or artist to filter the list."
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 22))
+        input.stringValue = playlistManager?.searchQuery ?? ""
+        alert.accessoryView = input
+        alert.addButton(withTitle: "Filter")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            playlistManager?.searchQuery = input.stringValue
+            searchField.stringValue = input.stringValue
+            tableView.reloadData()
         }
-        window?.makeFirstResponder(searchField)
+    }
+
+    private func promptRadioSearch() {
+        let alert = NSAlert()
+        alert.messageText = "Search SHOUTcast"
+        alert.informativeText = "Type a station name or keyword to search all of SHOUTcast."
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 22))
+        alert.accessoryView = input
+        alert.addButton(withTitle: "Search")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let q = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty, let rm = radioManager else { return }
+        // Populates the panel's station list, exactly like the inline search Enter.
+        Task { @MainActor in await rm.search(q) }
     }
 
     /// "Clear Filter" item title for the active section if a search filter is
