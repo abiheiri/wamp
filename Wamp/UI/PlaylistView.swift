@@ -203,6 +203,14 @@ class PlaylistView: NSView {
     /// genre with subgenres becomes a submenu led by an "All <Genre>" item (a menu
     /// item that owns a submenu isn't itself clickable). Used by both the unskinned
     /// GENRE button and the skinned RADIO tab. Genre name rides in representedObject.
+    /// Stations shown in the Radio table — just the filtered list. (The now-playing
+    /// station isn't pinned here: mixing "what's playing" into "what I'm browsing"
+    /// is confusing across genre changes. Favoriting a finder-played station is
+    /// handled in the finder and the GENRE menu's "★ Add current" item instead.)
+    private var displayedStations: [ShoutcastStation] {
+        radioManager?.filteredStations ?? []
+    }
+
     private func buildGenreMenu() -> NSMenu {
         let menu = NSMenu()
 
@@ -212,6 +220,17 @@ class PlaylistView: NSView {
                                  action: #selector(showFavoritesAction), keyEquivalent: "")
         favItem.target = self
         menu.addItem(favItem)
+
+        // Favorite (or unfavorite) the station that's playing right now — works
+        // even when it was played from the Cmd+J finder and isn't in any list.
+        if let np = radioManager?.nowPlayingStation {
+            let isFav = radioManager?.isFavorite(np) ?? false
+            let item = NSMenuItem(title: isFav ? "★ Remove current: \(np.name)" : "★ Add current: \(np.name)",
+                                  action: #selector(toggleFavoriteAction(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = np
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
 
         let tree = radioManager?.genres ?? ShoutcastGenre.bundledDefaults
@@ -278,7 +297,7 @@ class PlaylistView: NSView {
 
     private func highlightCurrentStation() {
         guard let rm = radioManager, let id = rm.currentStationID else { return }
-        if let row = rm.filteredStations.firstIndex(where: { $0.id == id }) {
+        if let row = displayedStations.firstIndex(where: { $0.id == id }) {
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
             tableView.scrollRowToVisible(row)
         }
@@ -657,7 +676,7 @@ class PlaylistView: NSView {
     private func playRow(_ row: Int) {
         if mode == .radio {
             guard let rm = radioManager else { return }
-            let list = rm.filteredStations
+            let list = displayedStations
             guard row < list.count else { return }
             let station = list[row]
             Task { @MainActor in await rm.playStation(station) }
@@ -874,7 +893,7 @@ class PlaylistView: NSView {
         // Radio rows: offer add/remove from favorites for the station under the cursor.
         if mode == .radio {
             guard let rm = radioManager else { return nil }
-            let list = rm.filteredStations
+            let list = displayedStations
             guard row >= 0, row < list.count else { return nil }
             let station = list[row]
             let menu = NSMenu()
@@ -1082,7 +1101,7 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
     func numberOfRows(in tableView: NSTableView) -> Int {
         if mode == .radio {
             // Show a single placeholder row when there are no stations to list.
-            let count = radioManager?.filteredStations.count ?? 0
+            let count = displayedStations.count
             return count == 0 ? 1 : count
         }
         return displayedTracks.count
@@ -1090,7 +1109,7 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         if mode == .radio {
-            let list = radioManager?.filteredStations ?? []
+            let list = displayedStations
             return list.isEmpty ? radioPlaceholderCell(column: tableColumn)
                                 : stationCell(for: row, column: tableColumn)
         }
@@ -1160,7 +1179,7 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
     /// right-aligned bitrate, styled like a playlist row (built-in look only).
     private func stationCell(for row: Int, column: NSTableColumn?) -> NSView? {
         guard let rm = radioManager else { return nil }
-        let list = rm.filteredStations
+        let list = displayedStations
         guard row < list.count else { return nil }
         let station = list[row]
         let isCurrent = rm.currentStationID == station.id
@@ -1182,7 +1201,8 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
         let currentColor = skinned ? style.current : WinampTheme.white
         let secondaryColor = skinned ? style.normal : WinampTheme.greenSecondary
 
-        let numLabel = NSTextField(labelWithString: "\(row + 1).")
+        // The currently-playing station shows a ▶ marker in place of its number.
+        let numLabel = NSTextField(labelWithString: isCurrent ? "\u{25B6}" : "\(row + 1).")
         numLabel.font = font
         numLabel.textColor = isCurrent ? currentColor : secondaryColor
         numLabel.isBezeled = false

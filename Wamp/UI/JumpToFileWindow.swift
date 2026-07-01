@@ -14,7 +14,7 @@ protocol JumpToFileDelegate: AnyObject {
 ///  - Playlist: instant in-memory filter+rank of local tracks (`JumpFilter`).
 ///  - Radio: ephemeral directory-wide SHOUTcast search (debounced network) that
 ///    does not touch the panel's station list — picking a station just plays it.
-final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
+final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSMenuDelegate {
     weak var jumpDelegate: JumpToFileDelegate?
     weak var radioManager: RadioManager?
 
@@ -91,6 +91,10 @@ final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegat
         tableView.allowsMultipleSelection = false
         tableView.allowsEmptySelection = true
         tableView.selectionHighlightStyle = .regular
+        // Right-click a Radio result to favorite it (populated per-click below).
+        let rowMenu = NSMenu()
+        rowMenu.delegate = self
+        tableView.menu = rowMenu
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = tableView
@@ -276,6 +280,50 @@ final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegat
             return
         }
         super.keyDown(with: event)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Cmd+D favorites the selected Radio result.
+        if mode == .radio, event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "d" {
+            toggleFavorite(row: tableView.selectedRow)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    // MARK: - Favorites (Radio tab)
+
+    /// Populate the right-click menu for the clicked Radio result.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        guard mode == .radio, let rm = radioManager else { return }
+        let row = tableView.clickedRow
+        guard row >= 0, row < radioStations.count else { return }
+        let station = radioStations[row]
+        let item = NSMenuItem(
+            title: rm.isFavorite(station) ? "Remove from Favorites" : "Add to Favorites",
+            action: #selector(favoriteMenuAction(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = station
+        menu.addItem(item)
+    }
+
+    @objc private func favoriteMenuAction(_ sender: NSMenuItem) {
+        guard let station = sender.representedObject as? ShoutcastStation else { return }
+        applyFavoriteToggle(station)
+    }
+
+    private func toggleFavorite(row: Int) {
+        guard row >= 0, row < radioStations.count else { return }
+        applyFavoriteToggle(radioStations[row])
+    }
+
+    private func applyFavoriteToggle(_ station: ShoutcastStation) {
+        guard let rm = radioManager else { return }
+        let wasFavorite = rm.isFavorite(station)
+        rm.toggleFavorite(station)
+        statusLabel.stringValue = wasFavorite ? "Removed \(station.name)" : "★ Added \(station.name)"
     }
 
     // MARK: - NSTableViewDataSource / Delegate
