@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.5] - 2026-07-01
+
+### Added
+
+- **Favorite the now-playing radio station.** A station played from the
+  Cmd+J finder can now be saved even though it isn't in any list: right-click
+  it (or ⌘D) in the finder, or use the GENRE menu's "★ Add current" item. The
+  currently-playing station is also marked with a ▶ in the radio list.
+
+### Fixed
+
+- **Hardened rapid radio-station switching against races.** Quickly switching
+  stations could let an earlier, slow-to-resolve pick override a later one, and
+  a previous stream's late (cancelled) callbacks could disturb the current
+  stream. A superseded-click guard and a per-stream generation token now ensure
+  only the latest pick plays and stale stream callbacks are ignored.
+
+### Changed
+
+- **MISC ▸ Jump to File is a prompt in both sections.** On the playlist it
+  filters the local list (restored in every mode); on the Radio tab it now
+  searches all of SHOUTcast and shows the results in the panel, like the
+  inline search bar.
+
 ## [1.2.4] - 2026-06-28
 
 ### Added

@@ -51,9 +51,12 @@ final class RadioManager: ObservableObject {
         Self.filter(stations, query: searchQuery)
     }
 
+    /// The full station object currently (or most recently) played — retained
+    /// even when it came from the ephemeral Cmd+J finder and isn't in `stations`.
+    @Published private(set) var nowPlayingStation: ShoutcastStation?
+
     var currentStation: ShoutcastStation? {
-        guard let id = currentStationID else { return nil }
-        return stations.first { $0.id == id }
+        nowPlayingStation ?? stations.first { $0.id == currentStationID }
     }
 
     // MARK: - Pure helpers (unit-tested)
@@ -224,6 +227,7 @@ final class RadioManager: ObservableObject {
     @MainActor
     func playStation(_ station: ShoutcastStation) async {
         currentStationID = station.id
+        nowPlayingStation = station
         // Show "Connecting…" and stop current audio immediately, before the
         // (possibly slow) directory lookup resolves the real stream URL.
         audioEngine?.beginStreamConnecting()
@@ -234,8 +238,12 @@ final class RadioManager: ObservableObject {
             } else {
                 url = try await client.getStreamURL(for: station.id)
             }
+            // A newer click may have superseded this one while the URL resolved
+            // (obscure stations resolve slowly) — don't let a stale request win.
+            guard currentStationID == station.id else { return }
             audioEngine?.playStream(url: url)
         } catch {
+            guard currentStationID == station.id else { return }
             audioEngine?.reportStreamFailure("Couldn't connect to \(station.name)")
         }
     }
