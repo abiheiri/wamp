@@ -2,10 +2,18 @@ import Cocoa
 import Combine
 
 class LCDDisplay: NSView {
-    var text: String = "" { didSet { scrollOffset = 0; needsDisplay = true } }
-    var isScrolling = true
+    var text: String = "" {
+        didSet {
+            scrollOffset = 0
+            cachedTextWidth = textSize().width + 30
+            updateScrollTimer()
+            needsDisplay = true
+        }
+    }
+    var isScrolling = true { didSet { updateScrollTimer() } }
 
     private var scrollOffset: CGFloat = 0
+    private var cachedTextWidth: CGFloat = 0
     private var scrollTimer: Timer?
     private let scrollSpeed: CGFloat = 0.5
     private var skinObserver: AnyCancellable?
@@ -26,7 +34,6 @@ class LCDDisplay: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.masksToBounds = true
-        startScrolling()
         skinObserver = SkinManager.shared.$currentSkin
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.needsDisplay = true }
@@ -34,19 +41,33 @@ class LCDDisplay: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private func startScrolling() {
+    /// The marquee timer exists only while a too-wide title is actually
+    /// scrolling. Titles that fit are static and need no timer at all, and the
+    /// width is measured once per title change instead of on every tick.
+    /// Scrolling keeps going while paused, matching classic Winamp.
+    private func updateScrollTimer() {
+        let needsMarquee = isScrolling && !text.isEmpty && cachedTextWidth > bounds.width
+        guard needsMarquee else {
+            scrollTimer?.invalidate()
+            scrollTimer = nil
+            return
+        }
+        guard scrollTimer == nil else { return }
         scrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            guard let self = self, self.isScrolling, !self.text.isEmpty else { return }
-            // Only animate (and redraw) when the title is too wide to fit. Short
-            // text is static, so redrawing it 30×/sec just burns CPU while idle.
-            let textWidth = self.textSize().width + 30
-            guard textWidth > self.bounds.width else { return }
+            guard let self = self else { return }
             self.scrollOffset += self.scrollSpeed
-            if self.scrollOffset > textWidth {
+            if self.scrollOffset > self.cachedTextWidth {
                 self.scrollOffset = -self.bounds.width
             }
             self.needsDisplay = true
         }
+    }
+
+    override func layout() {
+        super.layout()
+        // Bounds changes (initial layout, Double Size) change whether the
+        // current title overflows.
+        updateScrollTimer()
     }
 
     private func textSize() -> NSSize {
