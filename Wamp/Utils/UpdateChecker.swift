@@ -5,10 +5,10 @@ import Foundation
 final class UpdateChecker {
     private static let releasesURL = URL(string: "https://api.github.com/repos/abiheiri/wamp/releases/latest")!
     private static let fallbackReleasesPageURL = URL(string: "https://github.com/abiheiri/wamp/releases")!
-    /// Keeps the alert to a reasonable on-screen height. Every release notes
-    /// section shipped so far fits well under this; it only kicks in for an
-    /// unusually large release (many bundled changes in one version).
-    private static let maxReleaseNotesLength = 1200
+    /// Keeps the alert to about a paragraph — roughly one changelog bullet.
+    /// Single-fix releases fit in full; releases bundling several changes
+    /// are trimmed to their lead item, with the rest a click away.
+    private static let maxReleaseNotesLength = 500
 
     /// Fetch the latest release and prompt the user if an update is available.
     /// Call from the main queue; network work is performed asynchronously.
@@ -64,14 +64,24 @@ final class UpdateChecker {
     }
 
     /// Truncates `body` to `maxReleaseNotesLength`, preferring to cut at the
-    /// last paragraph break so a bullet is never chopped mid-sentence.
+    /// last paragraph break so a bullet is never chopped mid-sentence. A single
+    /// bullet can exceed the whole budget on its own, though — cutting at the
+    /// paragraph break above it would strip all the content and leave just a
+    /// bare section header, so that cut is only used if it keeps at least half
+    /// the budget. Otherwise fall back to the nearest word boundary.
     private func truncatedReleaseNotes(_ body: String) -> String {
         guard body.count > Self.maxReleaseNotesLength else { return body }
         let cutoff = body.index(body.startIndex, offsetBy: Self.maxReleaseNotesLength)
         let truncated = body[..<cutoff]
         let notice = "…\n\n(See full notes on the Releases page.)"
-        if let lastParagraphBreak = truncated.range(of: "\n\n", options: .backwards) {
+        let minRetained = Self.maxReleaseNotesLength / 2
+
+        if let lastParagraphBreak = truncated.range(of: "\n\n", options: .backwards),
+           truncated.distance(from: truncated.startIndex, to: lastParagraphBreak.lowerBound) >= minRetained {
             return String(truncated[..<lastParagraphBreak.lowerBound]) + "\n\n" + notice
+        }
+        if let lastSpace = truncated.range(of: " ", options: .backwards) {
+            return String(truncated[..<lastSpace.lowerBound]) + " " + notice
         }
         return truncated + notice
     }

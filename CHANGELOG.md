@@ -9,10 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - **Update-available dialog no longer grows unbounded.** Release notes in the
-  "Check for Updates" alert are now capped at 1200 characters, cutting at the
-  last paragraph break so a bullet is never chopped mid-sentence, with a note
-  pointing to the Releases page for the rest. A release with many bundled
-  changes could otherwise push the dialog off-screen on smaller displays.
+  "Check for Updates" alert are now capped at about a paragraph (500
+  characters), cutting at the last paragraph break so a bullet isn't chopped
+  mid-sentence — unless a single bullet exceeds the whole budget, in which
+  case it falls back to the nearest word boundary rather than collapsing to a
+  bare section header. A note points to the Releases page for the rest.
 
 ## [1.2.7]
 
