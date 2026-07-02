@@ -5,6 +5,10 @@ import Foundation
 final class UpdateChecker {
     private static let releasesURL = URL(string: "https://api.github.com/repos/abiheiri/wamp/releases/latest")!
     private static let fallbackReleasesPageURL = URL(string: "https://github.com/abiheiri/wamp/releases")!
+    /// Keeps the alert to a reasonable on-screen height. Every release notes
+    /// section shipped so far fits well under this; it only kicks in for an
+    /// unusually large release (many bundled changes in one version).
+    private static let maxReleaseNotesLength = 1200
 
     /// Fetch the latest release and prompt the user if an update is available.
     /// Call from the main queue; network work is performed asynchronously.
@@ -59,11 +63,25 @@ final class UpdateChecker {
         return false
     }
 
+    /// Truncates `body` to `maxReleaseNotesLength`, preferring to cut at the
+    /// last paragraph break so a bullet is never chopped mid-sentence.
+    private func truncatedReleaseNotes(_ body: String) -> String {
+        guard body.count > Self.maxReleaseNotesLength else { return body }
+        let cutoff = body.index(body.startIndex, offsetBy: Self.maxReleaseNotesLength)
+        let truncated = body[..<cutoff]
+        let notice = "…\n\n(See full notes on the Releases page.)"
+        if let lastParagraphBreak = truncated.range(of: "\n\n", options: .backwards) {
+            return String(truncated[..<lastParagraphBreak.lowerBound]) + "\n\n" + notice
+        }
+        return truncated + notice
+    }
+
     @MainActor
     private func showUpdateAvailableAlert(release: GitHubRelease, currentVersion: String) {
         let alert = NSAlert()
         alert.messageText = "Wamp \(release.tagName) is available"
-        alert.informativeText = "You are currently running Wamp \(currentVersion).\n\n\(release.body)"
+        let notes = truncatedReleaseNotes(release.body)
+        alert.informativeText = "You are currently running Wamp \(currentVersion).\n\n\(notes)"
         alert.alertStyle = .informational
 
         let openPageButton = alert.addButton(withTitle: "Open Releases Page")

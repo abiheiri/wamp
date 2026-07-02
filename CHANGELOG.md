@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Update-available dialog no longer grows unbounded.** Release notes in the
+  "Check for Updates" alert are now capped at 1200 characters, cutting at the
+  last paragraph break so a bullet is never chopped mid-sentence, with a note
+  pointing to the Releases page for the rest. A release with many bundled
+  changes could otherwise push the dialog off-screen on smaller displays.
+
 ## [1.2.7]
 
 ### Fixed
