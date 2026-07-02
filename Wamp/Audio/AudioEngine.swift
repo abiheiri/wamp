@@ -319,6 +319,11 @@ class AudioEngine: ObservableObject {
             return
         }
         playerNode.pause()
+        // Also pause the engine itself: with only the player node paused, Core
+        // Audio keeps pulling render callbacks on silence, burning CPU the whole
+        // time the app sits paused. Every resume path re-starts the engine via
+        // an `if !engine.isRunning { try engine.start() }` guard.
+        engine.pause()
         isPlaying = false
         playState = .paused
         stopTimeUpdates()
