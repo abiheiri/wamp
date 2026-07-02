@@ -63,11 +63,18 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           DMG="release/Wamp-${{ steps.version.outputs.version }}-macOS-arm64.dmg"
+          NOTES_FILE="$(mktemp)"
+          if ./scripts/extract-changelog.sh "${{ steps.version.outputs.version }}" > "$NOTES_FILE"; then
+            echo "Using CHANGELOG.md section for ${{ steps.version.outputs.version }}"
+          else
+            echo "Release $TAG" > "$NOTES_FILE"
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$DMG" --clobber
+            gh release edit "$TAG" --notes-file "$NOTES_FILE"
           else
             gh release create "$TAG" \
               --title "Wamp $TAG" \
-              --notes "Release $TAG" \
+              --notes-file "$NOTES_FILE" \
               "$DMG"
           fi
