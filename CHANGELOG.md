@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Media-key play resumes the radio station, not the local playlist.** After
+  pausing a radio stream with the keyboard play/pause key (F8), pressing play
+  again started the last local track while the marquee still showed the
+  station. The media-key path now reconnects to the station whenever radio is
+  the active source, matching the transport play button.
+
 ## [1.2.6] - 2026-07-02
 
 ### Fixed

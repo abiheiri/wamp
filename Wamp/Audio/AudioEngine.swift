@@ -289,6 +289,14 @@ class AudioEngine: ObservableObject {
     }
 
     func play() {
+        // Source-blind callers (media keys via HotKeyManager) land here too:
+        // when the active source is a stream, "play" means reconnect to the
+        // station — a stopped live stream can't resume, and falling through
+        // would play the last-loaded local file instead.
+        if activeSource == .stream {
+            if playState != .playing { replayCurrentStream() }
+            return
+        }
         guard audioFile != nil else { return }
         do {
             if !engine.isRunning {
