@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Idle CPU usage while paused or stopped.** The spectrum analyzer kept
   redrawing at 60fps after the bars had decayed, the audio engine's render
-  thread kept pulling silence while paused, and the LCD marquee re-measured its
+  thread kept pulling silence while paused or stopped (including pausing a
+  radio stream, which routes to stop), and the LCD marquee re-measured its
   text 30 times a second. The analyzer timer now stops once the display is
   empty, the engine pauses with playback, and the marquee timer only runs while
   a too-wide title is actually scrolling (still scrolling while paused, like

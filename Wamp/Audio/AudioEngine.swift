@@ -345,6 +345,11 @@ class AudioEngine: ObservableObject {
         removeSpectrumTap()
         stopStream()
         streamPhase = .idle
+        // Halt the render thread too — this is also the pause path for radio
+        // streams (a live stream can't resume, so pause() routes here), and
+        // without it the graph keeps rendering silence. All (re)play paths
+        // restart the engine behind an `if !engine.isRunning` guard.
+        engine.pause()
     }
 
     func togglePlayPause() {
