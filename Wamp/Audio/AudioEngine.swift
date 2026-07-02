@@ -319,6 +319,11 @@ class AudioEngine: ObservableObject {
             return
         }
         playerNode.pause()
+        // Also pause the engine itself: with only the player node paused, Core
+        // Audio keeps pulling render callbacks on silence, burning CPU the whole
+        // time the app sits paused. Every resume path re-starts the engine via
+        // an `if !engine.isRunning { try engine.start() }` guard.
+        engine.pause()
         isPlaying = false
         playState = .paused
         stopTimeUpdates()
@@ -340,6 +345,11 @@ class AudioEngine: ObservableObject {
         removeSpectrumTap()
         stopStream()
         streamPhase = .idle
+        // Halt the render thread too — this is also the pause path for radio
+        // streams (a live stream can't resume, so pause() routes here), and
+        // without it the graph keeps rendering silence. All (re)play paths
+        // restart the engine behind an `if !engine.isRunning` guard.
+        engine.pause()
     }
 
     func togglePlayPause() {

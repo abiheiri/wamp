@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.6] - 2026-07-02
+
+### Fixed
+
+- **Idle CPU usage while paused or stopped.** The spectrum analyzer kept
+  redrawing at 60fps after the bars had decayed, the audio engine's render
+  thread kept pulling silence while paused or stopped (including pausing a
+  radio stream, which routes to stop), and the LCD marquee re-rendered every
+  glyph from the skin sprite sheet 30 times a second. The analyzer timer now
+  stops once the display is empty, the engine pauses with playback, and the
+  marquee pre-renders the scrolling title once and blits the cached image per
+  frame, only while a too-wide title is actually scrolling (still scrolling
+  while paused, like classic Winamp).
+
 ## [1.2.5] - 2026-07-01
 
 ### Added

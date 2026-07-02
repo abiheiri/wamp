@@ -2,10 +2,23 @@ import Cocoa
 import Combine
 
 class LCDDisplay: NSView {
-    var text: String = "" { didSet { scrollOffset = 0; needsDisplay = true } }
-    var isScrolling = true
+    var text: String = "" {
+        didSet {
+            scrollOffset = 0
+            cachedTextWidth = textSize().width + 30
+            marqueeStrip = nil
+            updateScrollTimer()
+            needsDisplay = true
+        }
+    }
+    var isScrolling = true { didSet { updateScrollTimer() } }
 
     private var scrollOffset: CGFloat = 0
+    private var cachedTextWidth: CGFloat = 0
+    /// The doubled title (text + separator + text) pre-rendered once. Per-glyph
+    /// sprite rendering is far too slow to repeat 30×/sec — the marquee frame
+    /// just blits this image at the current scroll offset.
+    private var marqueeStrip: NSImage?
     private var scrollTimer: Timer?
     private let scrollSpeed: CGFloat = 0.5
     private var skinObserver: AnyCancellable?
@@ -26,26 +39,77 @@ class LCDDisplay: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.masksToBounds = true
-        startScrolling()
         skinObserver = SkinManager.shared.$currentSkin
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.needsDisplay = true }
+            .sink { [weak self] _ in
+                self?.marqueeStrip = nil
+                self?.needsDisplay = true
+            }
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private func startScrolling() {
+    /// The marquee timer exists only while a too-wide title is actually
+    /// scrolling. Titles that fit are static and need no timer at all, and the
+    /// width is measured once per title change instead of on every tick.
+    /// Scrolling keeps going while paused, matching classic Winamp.
+    private func updateScrollTimer() {
+        let needsMarquee = isScrolling && !text.isEmpty && cachedTextWidth > bounds.width
+        guard needsMarquee else {
+            scrollTimer?.invalidate()
+            scrollTimer = nil
+            return
+        }
+        guard scrollTimer == nil else { return }
         scrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            guard let self = self, self.isScrolling, !self.text.isEmpty else { return }
-            // Only animate (and redraw) when the title is too wide to fit. Short
-            // text is static, so redrawing it 30×/sec just burns CPU while idle.
-            let textWidth = self.textSize().width + 30
-            guard textWidth > self.bounds.width else { return }
+            guard let self = self else { return }
             self.scrollOffset += self.scrollSpeed
-            if self.scrollOffset > textWidth {
+            if self.scrollOffset > self.cachedTextWidth {
                 self.scrollOffset = -self.bounds.width
             }
             self.needsDisplay = true
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        // Bounds changes (initial layout, Double Size) change whether the
+        // current title overflows, and invalidate the strip's baked-in
+        // vertical centering.
+        if let strip = marqueeStrip, strip.size.height != bounds.height {
+            marqueeStrip = nil
+        }
+        updateScrollTimer()
+    }
+
+    /// Builds the pre-rendered marquee strip: the doubled title with vertical
+    /// centering baked in, sized to the current bounds height. The drawing
+    /// handler runs once per backing scale and AppKit caches the raster.
+    private func makeMarqueeStrip() -> NSImage? {
+        let height = bounds.height
+        guard height > 0, !text.isEmpty else { return nil }
+
+        if WinampTheme.skinIsActive {
+            guard let sheet = WinampTheme.provider.textSheet else { return nil }
+            let combined = text + "   *   " + text
+            let width = TextSpriteRenderer.width(of: combined)
+            let y = (height - TextSpriteRenderer.glyphHeight) / 2
+            return NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
+                TextSpriteRenderer.draw(combined, at: NSPoint(x: 0, y: y), sheet: sheet)
+                return true
+            }
+        } else {
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: WinampTheme.trackTitleFont,
+                .foregroundColor: WinampTheme.greenBright
+            ]
+            let combined = text + "   ★   " + text
+            let size = combined.size(withAttributes: attrs)
+            let y = (height - size.height) / 2
+            return NSImage(size: NSSize(width: max(1, size.width), height: height), flipped: false) { _ in
+                combined.draw(at: NSPoint(x: 0, y: y), withAttributes: attrs)
+                return true
+            }
         }
     }
 
@@ -80,9 +144,13 @@ class LCDDisplay: NSView {
         if textWidth <= bounds.width || !isScrolling {
             TextSpriteRenderer.draw(text, at: NSPoint(x: 2, y: y), sheet: textSheet)
         } else {
-            let separator = "   *   "
-            let combined = text + separator + text
-            TextSpriteRenderer.draw(combined, at: NSPoint(x: -scrollOffset, y: y), sheet: textSheet)
+            if marqueeStrip == nil { marqueeStrip = makeMarqueeStrip() }
+            let ctx = NSGraphicsContext.current
+            let prevInterpolation = ctx?.imageInterpolation
+            ctx?.imageInterpolation = .none
+            marqueeStrip?.draw(at: NSPoint(x: -scrollOffset, y: 0), from: .zero,
+                               operation: .sourceOver, fraction: 1.0)
+            if let prev = prevInterpolation { ctx?.imageInterpolation = prev }
         }
     }
 
@@ -105,9 +173,9 @@ class LCDDisplay: NSView {
         if size.width <= bounds.width || !isScrolling {
             text.draw(at: NSPoint(x: 2, y: y), withAttributes: attrs)
         } else {
-            // Scroll: draw text offset
-            let displayText = text + "   ★   " + text
-            displayText.draw(at: NSPoint(x: -scrollOffset, y: y), withAttributes: attrs)
+            if marqueeStrip == nil { marqueeStrip = makeMarqueeStrip() }
+            marqueeStrip?.draw(at: NSPoint(x: -scrollOffset, y: 0), from: .zero,
+                               operation: .sourceOver, fraction: 1.0)
         }
     }
 
