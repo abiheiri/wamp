@@ -3,7 +3,10 @@ import Combine
 
 class SpectrumView: NSView {
     var spectrumData: [Float] = [] {
-        didSet { targetData = spectrumData }
+        didSet {
+            targetData = spectrumData
+            startAnimationIfNeeded()
+        }
     }
     var barCount: Int = 26
 
@@ -40,6 +43,13 @@ class SpectrumView: NSView {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.needsDisplay = true }
         resetArrays()
+    }
+
+    /// The timer only runs while there's something to animate. It stops itself
+    /// once the bars and peak caps have decayed to zero (see `tick`), so a
+    /// paused/stopped player costs no redraws; fresh spectrum data restarts it.
+    private func startAnimationIfNeeded() {
+        guard animationTimer == nil else { return }
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.tick()
         }
@@ -79,6 +89,18 @@ class SpectrumView: NSView {
             }
         }
         needsDisplay = true
+
+        // Everything has decayed to silence — snap to zero, draw the empty
+        // display once, and stop ticking until new spectrum data arrives.
+        let epsilon: Float = 0.001
+        let settled = input.allSatisfy { $0 <= epsilon }
+            && smoothedData.allSatisfy { $0 <= epsilon }
+            && peakRows.allSatisfy { $0 <= epsilon }
+        if settled {
+            resetArrays()
+            animationTimer?.invalidate()
+            animationTimer = nil
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
