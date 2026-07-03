@@ -383,13 +383,13 @@ class MainPlayerView: NSView {
         // The "kbps" and "khz" *labels* are baked into main.bmp, so only draw the numbers.
         // Webamp positions (top-down): bitrate at (111, 43), sample rate at (156, 43).
         // y_appkit = mainHeight - 43 - 6 (glyphs are 6 px tall) = 67
-        if let textSheet = WinampTheme.provider.textSheet,
-           let track = playlistManager?.currentTrack {
+        if let track = playlistManager?.currentTrack {
+            let textSheet = WinampTheme.provider.textSheet
             let textY: CGFloat = mainHeight - 43 - 6
             let bitrateStr = track.bitrate > 0 ? String(format: "%3d", track.bitrate) : "---"
             let sampleStr = track.sampleRate > 0 ? String(format: "%2d", track.sampleRate / 1000) : "--"
-            TextSpriteRenderer.draw(bitrateStr, at: NSPoint(x: 111, y: textY), sheet: textSheet)
-            TextSpriteRenderer.draw(sampleStr,  at: NSPoint(x: 156, y: textY), sheet: textSheet)
+            TextSpriteRenderer.drawClassic(bitrateStr, at: NSPoint(x: 111, y: textY), sheet: textSheet)
+            TextSpriteRenderer.drawClassic(sampleStr,  at: NSPoint(x: 156, y: textY), sheet: textSheet)
         }
     }
 

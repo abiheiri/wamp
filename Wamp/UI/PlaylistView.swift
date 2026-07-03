@@ -441,11 +441,12 @@ class PlaylistView: NSView {
         // counts into the hundreds still fit.
         // Webamp positions #playlist-running-time-display at top:10, left:7
         // inside the 150×38 BR corner, i.e. absolute (w-150+7, corner-top-10).
-        if let textSheet = WinampTheme.provider.textSheet, let pm = playlistManager {
+        if let pm = playlistManager {
             let info = "\(pm.tracks.count) / \(pm.formattedTotalDurationCompact)"
             let textX = w - 150 + 7
             let textY: CGFloat = 38 - 10 - TextSpriteRenderer.glyphHeight
-            TextSpriteRenderer.draw(info, at: NSPoint(x: textX, y: textY), sheet: textSheet)
+            TextSpriteRenderer.drawClassic(info, at: NSPoint(x: textX, y: textY),
+                                           sheet: WinampTheme.provider.textSheet)
         }
 
         drawSkinnedTabStrip(width: w, height: h)
@@ -455,7 +456,7 @@ class PlaylistView: NSView {
     /// the skinned title bar. The active tab gets an underline in the skin's
     /// "current" color (text.bmp glyphs can't be recolored).
     private func drawSkinnedTabStrip(width w: CGFloat, height h: CGFloat) {
-        guard let textSheet = WinampTheme.provider.textSheet else { return }
+        let textSheet = WinampTheme.provider.textSheet
         let style = WinampTheme.provider.playlistStyle
         let stripY = skinnedTabStripY()
 
@@ -466,8 +467,10 @@ class PlaylistView: NSView {
         let glyphY = round(stripY + (Self.skinnedTabStripH - TextSpriteRenderer.glyphHeight) / 2)
         let plRect = skinnedPlaylistTabRect()
         let raRect = skinnedRadioTabRect()
-        TextSpriteRenderer.draw("PLAYLIST", at: NSPoint(x: plRect.minX, y: glyphY), sheet: textSheet)
-        TextSpriteRenderer.draw("RADIO", at: NSPoint(x: raRect.minX, y: glyphY), sheet: textSheet)
+        TextSpriteRenderer.drawClassic("PLAYLIST", at: NSPoint(x: plRect.minX, y: glyphY),
+                                       sheet: textSheet, color: style.normal)
+        TextSpriteRenderer.drawClassic("RADIO", at: NSPoint(x: raRect.minX, y: glyphY),
+                                       sheet: textSheet, color: style.normal)
 
         style.current.setFill()
         let active = (mode == .radio) ? raRect : plRect

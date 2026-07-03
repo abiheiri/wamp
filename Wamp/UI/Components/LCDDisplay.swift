@@ -89,7 +89,7 @@ class LCDDisplay: NSView {
         let height = bounds.height
         guard height > 0, !text.isEmpty else { return nil }
 
-        if WinampTheme.skinIsActive {
+        if usesTextSheet {
             guard let sheet = WinampTheme.provider.textSheet else { return nil }
             let combined = text + "   *   " + text
             let width = TextSpriteRenderer.width(of: combined)
@@ -100,7 +100,7 @@ class LCDDisplay: NSView {
             }
         } else {
             let attrs: [NSAttributedString.Key: Any] = [
-                .font: WinampTheme.trackTitleFont,
+                .font: marqueeFont,
                 .foregroundColor: WinampTheme.greenBright
             ]
             let combined = text + "   ★   " + text
@@ -113,9 +113,22 @@ class LCDDisplay: NSView {
         }
     }
 
+    /// The classic skinned layout gives the marquee a 6px-tall frame; the
+    /// regular 9pt font only fits the taller unskinned frame.
+    private var marqueeFont: NSFont {
+        bounds.height <= 8 ? TextSpriteRenderer.classicFallbackFont : WinampTheme.trackTitleFont
+    }
+
+    /// True when the active provider renders text via a bitmap sheet. The
+    /// built-in classic skin has no sheet — its text draws with native fonts
+    /// through the built-in path so it stays crisp at fractional scales.
+    private var usesTextSheet: Bool {
+        WinampTheme.skinIsActive && WinampTheme.provider.textSheet != nil
+    }
+
     private func textSize() -> NSSize {
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: WinampTheme.trackTitleFont,
+            .font: marqueeFont,
             .foregroundColor: WinampTheme.greenBright
         ]
         return text.size(withAttributes: attrs)
@@ -123,7 +136,7 @@ class LCDDisplay: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        if WinampTheme.skinIsActive {
+        if usesTextSheet {
             drawSkinned()
         } else {
             drawBuiltIn()
@@ -156,7 +169,7 @@ class LCDDisplay: NSView {
 
     private func drawBuiltIn() {
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: WinampTheme.trackTitleFont,
+            .font: marqueeFont,
             .foregroundColor: WinampTheme.greenBright
         ]
 

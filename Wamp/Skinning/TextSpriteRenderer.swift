@@ -84,4 +84,31 @@ enum TextSpriteRenderer {
     static func width(of text: String) -> CGFloat {
         CGFloat(text.count) * glyphWidth
     }
+
+    /// Small native font standing in for the 5×6 bitmap glyphs when a skin
+    /// provides no text.bmp (the built-in classic look) — crisp at the app's
+    /// fractional window scale where bitmap glyphs go chunky.
+    static let classicFallbackFont = NSFont.systemFont(ofSize: 6.5, weight: .medium)
+
+    /// Classic-metric text with or without a sheet: bitmap glyphs when
+    /// `sheet` is non-nil, otherwise `classicFallbackFont` vertically
+    /// centered on the 6px glyph cell at `origin`.
+    static func drawClassic(_ text: String, at origin: NSPoint, sheet: NSImage?,
+                            color: NSColor = NSColor(hex: 0x01E200)) {
+        if let sheet {
+            draw(text, at: origin, sheet: sheet)
+            return
+        }
+        let ctx = NSGraphicsContext.current
+        let prevAA = ctx?.shouldAntialias
+        ctx?.shouldAntialias = true
+        defer { if let v = prevAA { ctx?.shouldAntialias = v } }
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: classicFallbackFont,
+            .foregroundColor: color,
+        ]
+        let size = text.size(withAttributes: attrs)
+        text.draw(at: NSPoint(x: origin.x, y: origin.y + (glyphHeight - size.height) / 2),
+                  withAttributes: attrs)
+    }
 }
