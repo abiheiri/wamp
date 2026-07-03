@@ -11,6 +11,8 @@ enum ClassicSprites {
     /// Returns nil for keys not yet recreated (caller falls back accordingly).
     static func image(_ key: SpriteKey) -> NSImage? {
         switch key {
+        case .mainBackground:
+            return ClassicMainFace.background()
         case .titleBarActive:
             return ClassicTitleBar.bar(active: true)
         case .titleBarInactive:
