@@ -6,11 +6,12 @@
 import AppKit
 
 enum ClassicButtons {
-    static func fromSheet(_ map: [String]) -> NSImage {
+    static func fromSheet(_ map: [String],
+                          colors: [Character: NSColor] = ClassicPixelSheets.colors) -> NSImage {
         let h = map.count
         let w = map.first.map { $0.count } ?? 0
         return ClassicDraw.image(width: w, height: h) { _ in
-            ClassicDraw.pixelMap(map, at: .zero, colors: ClassicPixelSheets.colors)
+            ClassicDraw.pixelMap(map, at: .zero, colors: colors)
         }
     }
 

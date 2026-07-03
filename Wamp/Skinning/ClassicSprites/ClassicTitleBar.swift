@@ -13,9 +13,20 @@ enum ClassicTitleBar {
     private static let pipesStart: CGFloat = 17
 
     static func bar(active: Bool) -> NSImage {
+        bar(active: active, title: "WAMP", menuGlyph: true, minimizeAndShade: true)
+    }
+
+    /// The EQ window's title strip (lives in eqmain.bmp in real skins):
+    /// same chrome, its own title, close button only.
+    static func eqBar(active: Bool) -> NSImage {
+        bar(active: active, title: "EQUALIZER", menuGlyph: false, minimizeAndShade: false)
+    }
+
+    private static func bar(active: Bool, title: String,
+                            menuGlyph: Bool, minimizeAndShade: Bool) -> NSImage {
         ClassicDraw.image(width: width, height: height) { _ in
             drawBody()
-            drawMenuGlyph(active: active)
+            if menuGlyph { drawMenuGlyph(active: active) }
 
             // Title, centered; pipes fill the space to either side of it.
             let attrs: [NSAttributedString.Key: Any] = [
@@ -24,19 +35,21 @@ enum ClassicTitleBar {
                                          : ClassicPalette.titleTextInactive,
                 .kern: 1.2,
             ]
-            let title = "WAMP"
             let size = title.size(withAttributes: attrs)
             let tx = (CGFloat(width) - size.width) / 2
             title.draw(at: NSPoint(x: tx, y: (CGFloat(height) - size.height) / 2),
                        withAttributes: attrs)
 
-            drawPipe(from: pipesStart, to: (tx - 4).rounded(.down), active: active)
+            let pipesLeft = menuGlyph ? pipesStart : 8
+            drawPipe(from: pipesLeft, to: (tx - 4).rounded(.down), active: active)
             drawPipe(from: (tx + size.width + 4).rounded(.up), to: pipesEnd, active: active)
 
             // Baked window buttons at the hit rects TitleBarView uses
             // (width-33 / width-22 / width-11).
-            ClassicDraw.pixelMap(minimizeGlyph, at: NSPoint(x: 242, y: 3), colors: glyphColors)
-            ClassicDraw.pixelMap(shadeUnpressed, at: NSPoint(x: 253, y: 3), colors: glyphColors)
+            if minimizeAndShade {
+                ClassicDraw.pixelMap(minimizeGlyph, at: NSPoint(x: 242, y: 3), colors: glyphColors)
+                ClassicDraw.pixelMap(shadeUnpressed, at: NSPoint(x: 253, y: 3), colors: glyphColors)
+            }
             ClassicDraw.pixelMap(closeUnpressed, at: NSPoint(x: 264, y: 3), colors: glyphColors)
         }
     }

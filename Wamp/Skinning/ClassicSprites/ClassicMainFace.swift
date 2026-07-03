@@ -31,19 +31,7 @@ enum ClassicMainFace {
     }
 
     private static func drawFrame() {
-        ClassicDraw.hRamp(y: 0, height: 1, width: 275,
-                          left: NSColor(hex: 0x0C0C10), mid: NSColor(hex: 0x1E1D30),
-                          right: NSColor(hex: 0x161622))
-        ClassicDraw.hRamp(y: 1, height: 1, width: 275,
-                          left: NSColor(hex: 0x4A4950), mid: NSColor(hex: 0x626179),
-                          right: NSColor(hex: 0x565565))
-        ClassicDraw.hRamp(y: 115, height: 1, width: 275,
-                          left: NSColor(hex: 0x101017), mid: NSColor(hex: 0x1E1D30),
-                          right: NSColor(hex: 0x161420))
-        ClassicDraw.px(0, 0, 1, 116, NSColor(hex: 0x0C0C10))
-        ClassicDraw.px(1, 1, 1, 114, NSColor(hex: 0x4F4F5A))
-        ClassicDraw.px(274, 0, 1, 116, NSColor(hex: 0x14141D))
-        ClassicDraw.px(271, 2, 1, 112, NSColor(hex: 0x52525F))
+        ClassicDraw.windowFrame(width: 275, height: 116)
         // Inner-left bevel line of the content panel.
         ClassicDraw.px(6, 15, 1, 88, NSColor(hex: 0x4A4950))
     }

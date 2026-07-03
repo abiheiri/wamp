@@ -37,8 +37,46 @@ enum ClassicSprites {
             return ClassicSliders.tintedBar(width: 38, position: position)
         case .volumeThumb(let pressed), .balanceThumb(let pressed):
             return ClassicSliders.volumeThumb(pressed: pressed)
+        case .eqBackground:
+            return ClassicEqualizer.background()
+        case .eqTitleBar(let active):
+            return ClassicTitleBar.eqBar(active: active)
+        case .eqSliderBackground(let position):
+            return ClassicEqualizer.sliderBackground(position: position)
+        case .eqSliderThumb(let pressed):
+            return ClassicButtons.fromSheet(pressed ? ClassicEQSheets.eqThumbPressed
+                                                    : ClassicEQSheets.eqThumb,
+                                            colors: ClassicEQSheets.colors)
+        case .eqOnButton(let active, let pressed):
+            return ClassicButtons.fromSheet(eqSheet(active, pressed,
+                                                    ClassicEQSheets.eqOnOff, ClassicEQSheets.eqOnOffPressed,
+                                                    ClassicEQSheets.eqOnActive, ClassicEQSheets.eqOnActivePressed),
+                                            colors: ClassicEQSheets.colors)
+        case .eqAutoButton(let active, let pressed):
+            return ClassicButtons.fromSheet(eqSheet(active, pressed,
+                                                    ClassicEQSheets.eqAutoOff, ClassicEQSheets.eqAutoOffPressed,
+                                                    ClassicEQSheets.eqAutoActive, ClassicEQSheets.eqAutoActivePressed),
+                                            colors: ClassicEQSheets.colors)
+        case .eqPresetsButton(let pressed):
+            return ClassicButtons.fromSheet(pressed ? ClassicEQSheets.eqPresetsPressed
+                                                    : ClassicEQSheets.eqPresets,
+                                            colors: ClassicEQSheets.colors)
+        case .eqGraphBackground:
+            return ClassicButtons.fromSheet(ClassicEQSheets.eqGraphBg,
+                                            colors: ClassicEQSheets.colors)
         default:
             return nil
+        }
+    }
+
+    private static func eqSheet(_ active: Bool, _ pressed: Bool,
+                                _ off: [String], _ offPressed: [String],
+                                _ on: [String], _ onPressed: [String]) -> [String] {
+        switch (active, pressed) {
+        case (false, false): return off
+        case (false, true):  return offPressed
+        case (true, false):  return on
+        case (true, true):   return onPressed
         }
     }
 }
@@ -76,5 +114,24 @@ enum ClassicDraw {
                       left: NSColor, mid: NSColor, right: NSColor) {
         NSGradient(colors: [left, mid, right])?
             .draw(in: NSRect(x: 0, y: y, width: width, height: height), angle: 0)
+    }
+
+    /// The shared window frame of the main and EQ faces: dark outline, light
+    /// bevel row/columns (left col 1, right col width-4).
+    static func windowFrame(width: Int, height: Int) {
+        let w = CGFloat(width), h = CGFloat(height)
+        hRamp(y: 0, height: 1, width: w,
+              left: NSColor(hex: 0x0C0C10), mid: NSColor(hex: 0x1E1D30),
+              right: NSColor(hex: 0x161622))
+        hRamp(y: 1, height: 1, width: w,
+              left: NSColor(hex: 0x4A4950), mid: NSColor(hex: 0x626179),
+              right: NSColor(hex: 0x565565))
+        hRamp(y: h - 1, height: 1, width: w,
+              left: NSColor(hex: 0x101017), mid: NSColor(hex: 0x1E1D30),
+              right: NSColor(hex: 0x161420))
+        px(0, 0, 1, h, NSColor(hex: 0x0C0C10))
+        px(1, 1, 1, h - 2, NSColor(hex: 0x4F4F5A))
+        px(w - 1, 0, 1, h, NSColor(hex: 0x14141D))
+        px(w - 4, 2, 1, h - 4, NSColor(hex: 0x52525F))
     }
 }
