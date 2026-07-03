@@ -21,6 +21,10 @@ enum ClassicSprites {
             return ClassicTitleBar.closeButton(pressed: pressed)
         case .titleBarShadeButton(let pressed):
             return ClassicTitleBar.shadeButton(pressed: pressed)
+        case .previous, .play, .pause, .stop, .next, .eject:
+            return ClassicButtons.transport(key)
+        case .shuffleButton, .repeatButton, .eqToggleButton, .plToggleButton, .mono, .stereo:
+            return ClassicButtons.toggle(key)
         default:
             return nil
         }
