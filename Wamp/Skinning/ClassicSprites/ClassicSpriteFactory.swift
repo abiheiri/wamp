@@ -25,6 +25,8 @@ enum ClassicSprites {
             return ClassicButtons.transport(key)
         case .shuffleButton, .repeatButton, .eqToggleButton, .plToggleButton, .mono, .stereo:
             return ClassicButtons.toggle(key)
+        case .digit(let n):
+            return ClassicDigits.digit(n)
         case .seekBackground:
             return ClassicSliders.seekBackground()
         case .seekThumb(let pressed):
