@@ -67,6 +67,60 @@ struct PlaylistManagerTests {
         #expect(pm.currentIndex == -1)
     }
 
+    // MARK: - Filtered navigation
+
+    /// Five tracks; query "red" matches indices 0, 2, 4.
+    private func makeFilteredPM() -> PlaylistManager {
+        let pm = PlaylistManager()
+        pm.addTracks([makeTrack("red fish"), makeTrack("blue bird"), makeTrack("red bird"),
+                      makeTrack("blue fish"), makeTrack("red sky")])
+        pm.searchQuery = "red"
+        return pm
+    }
+
+    @Test func playNext_withFilter_stepsWithinFilteredTracks() {
+        let pm = makeFilteredPM()
+        pm.currentIndex = 0
+        pm.playNext()
+        #expect(pm.currentIndex == 2)
+    }
+
+    @Test func playNext_withFilter_currentOutsideFilter_playsFirstMatch() {
+        let pm = makeFilteredPM()
+        pm.currentIndex = 1
+        pm.playNext()
+        #expect(pm.currentIndex == 0)
+    }
+
+    @Test func playNext_withFilter_atLastMatch_stopsWithoutAdvancing() {
+        let pm = makeFilteredPM()
+        pm.currentIndex = 4
+        pm.playNext()
+        #expect(pm.currentIndex == 4)
+    }
+
+    @Test func playPrevious_withFilter_stepsBackWithinFilteredTracks() {
+        let pm = makeFilteredPM()
+        pm.currentIndex = 4
+        pm.playPrevious()
+        #expect(pm.currentIndex == 2)
+    }
+
+    @Test func playPrevious_withFilter_atFirstMatch_wrapsToLastMatch() {
+        let pm = makeFilteredPM()
+        pm.currentIndex = 0
+        pm.playPrevious()
+        #expect(pm.currentIndex == 4)
+    }
+
+    @Test func playNext_withFilterMatchingNothing_doesNothing() {
+        let pm = makeFilteredPM()
+        pm.searchQuery = "zzz"
+        pm.currentIndex = 1
+        pm.playNext()
+        #expect(pm.currentIndex == 1)
+    }
+
     @Test func moveTracks_preservesCurrentTrack() {
         let pm = PlaylistManager()
         let tracks = [makeTrack("a"), makeTrack("b"), makeTrack("c")]
