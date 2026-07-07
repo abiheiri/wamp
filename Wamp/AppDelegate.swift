@@ -478,15 +478,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func stopAction() { audioEngine.stop() }
+
+    /// Next/prev drive the radio list when a stream is playing or the
+    /// playlist panel is on the Radio tab (matching the transport buttons).
+    private var routesToRadio: Bool {
+        audioEngine.activeSource == .stream || mainWindow.playlistView.isShowingRadio
+    }
+
     @objc private func nextAction() {
-        if audioEngine.activeSource == .stream {
+        if routesToRadio {
             Task { await radioManager.playNext() }
         } else {
             playlistManager.playNext()
         }
     }
     @objc private func prevAction() {
-        if audioEngine.activeSource == .stream {
+        if routesToRadio {
             Task { await radioManager.playPrevious() }
         } else {
             playlistManager.playPrevious()
