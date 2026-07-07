@@ -78,16 +78,17 @@ enum ClassicSliders {
     /// Silver grip thumb (volume/balance). Pressed inverts to the dark face
     /// with light grips, like VOLUME.BMP's pressed variant.
     static func volumeThumb(pressed: Bool) -> NSImage {
-        silverThumb(width: 14, height: 11, pressed: pressed, gripCount: 3)
+        silverThumb(width: 14, height: 11, pressed: pressed, verticalGrips: 3)
     }
 
-    /// EQ band thumb — same family, square with a center grip.
+    /// EQ band thumb — same family, square with a horizontal "=" grip
+    /// like the original fader knob.
     static func eqThumb(pressed: Bool) -> NSImage {
-        silverThumb(width: 11, height: 11, pressed: pressed, gripCount: 1)
+        silverThumb(width: 11, height: 11, pressed: pressed, verticalGrips: 0)
     }
 
     private static func silverThumb(width: Int, height: Int, pressed: Bool,
-                                    gripCount: Int) -> NSImage {
+                                    verticalGrips: Int) -> NSImage {
         ClassicDraw.image(width: width, height: height) { rect in
             let w = rect.width, h = rect.height
             let face = NSColor(hex: pressed ? 0x10151B : 0x9DAEB7)
@@ -101,11 +102,18 @@ enum ClassicSliders {
                 ClassicDraw.px(1, h - 2, w - 2, 1, NSColor(hex: 0x3A4858))
                 ClassicDraw.px(w - 2, 1, 1, h - 2, NSColor(hex: 0x687082))
             }
-            let mid = (w / 2).rounded()
-            let spread: CGFloat = 2
-            for g in 0..<gripCount {
-                let gx = mid + (CGFloat(g) - CGFloat(gripCount - 1) / 2) * spread - 0.5
-                ClassicDraw.px(gx, 3, 1, h - 6, grip)
+            if verticalGrips > 0 {
+                let mid = (w / 2).rounded()
+                let spread: CGFloat = 2
+                for g in 0..<verticalGrips {
+                    let gx = mid + (CGFloat(g) - CGFloat(verticalGrips - 1) / 2) * spread - 0.5
+                    ClassicDraw.px(gx, 3, 1, h - 6, grip)
+                }
+            } else {
+                // Horizontal "=" grip centered on the knob.
+                let mid = (h / 2).rounded()
+                ClassicDraw.px(3, mid - 2, w - 6, 1, grip)
+                ClassicDraw.px(3, mid + 1, w - 6, 1, grip)
             }
         }
     }

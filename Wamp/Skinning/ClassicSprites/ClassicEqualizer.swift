@@ -31,8 +31,8 @@ enum ClassicEqualizer {
                               left: NSColor(hex: 0x12121B),
                               mid: NSColor(hex: 0x1D1C2E),
                               right: NSColor(hex: 0x1D1C2E))
-            glowBand(from: 12, to: 44)
-            glowBand(from: 70, to: 266)
+            glowBand(from: 12, to: 52)
+            glowBand(from: 58, to: 266)
             ClassicDraw.windowFrame(width: 275, height: 116)
             // Baked details extracted 1:1 from the sheet: the tick ladder,
             // the three gold dB labels with their dashed guide rows, and the
@@ -70,7 +70,7 @@ enum ClassicEqualizer {
 
     /// Soft bright column with faded edges (drawn over the dark base).
     private static func glowBand(from x0: CGFloat, to x1: CGFloat) {
-        let dark = NSColor(hex: 0x1C1C2D)
+        let dark = NSColor(hex: 0x211F35)
         let bright = NSColor(hex: 0x2A2946)
         let fade = min(12, (x1 - x0) / 4)
         NSGradient(colorsAndLocations: (dark, 0), (bright, fade / (x1 - x0)),

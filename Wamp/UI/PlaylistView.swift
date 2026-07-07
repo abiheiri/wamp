@@ -548,9 +548,10 @@ class PlaylistView: NSView {
                                        width: w - leftW - rightW - 4 - genreW, height: 13)
             genreButton.frame = genreButton.isHidden ? .zero
                 : NSRect(x: w - rightW - genreW, y: rowY + 1, width: genreW - 2, height: 13)
-            // Button row over the plain classic bottom corners.
+            // Button row over the plain classic bottom corners — classic
+            // pledit geometry (22px buttons at x = 11/40/69/98).
             for (i, btn) in [addButton, remButton, selButton, miscButton].enumerated() {
-                btn.frame = NSRect(x: 6 + CGFloat(i) * 29, y: 10, width: 27, height: 16)
+                btn.frame = NSRect(x: 11 + CGFloat(i) * 29, y: 10, width: 22, height: 18)
             }
             listOptsButton.frame = NSRect(x: w - 54, y: 19, width: 48, height: 14)
         }
