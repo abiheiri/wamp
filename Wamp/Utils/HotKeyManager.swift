@@ -5,6 +5,12 @@ class HotKeyManager {
     private weak var audioEngine: AudioEngine?
     private weak var playlistManager: PlaylistManager?
 
+    /// Set by AppDelegate so media keys route next/prev like the transport
+    /// buttons: to the radio list when a stream plays or the Radio tab is in
+    /// view, otherwise to the local playlist.
+    weak var radioManager: RadioManager?
+    var routesToRadio: (() -> Bool)?
+
     init(audioEngine: AudioEngine, playlistManager: PlaylistManager) {
         self.audioEngine = audioEngine
         self.playlistManager = playlistManager
@@ -31,12 +37,20 @@ class HotKeyManager {
         }
 
         center.nextTrackCommand.addTarget { [weak self] _ in
-            self?.playlistManager?.playNext()
+            if self?.routesToRadio?() == true, let radio = self?.radioManager {
+                Task { await radio.playNext() }
+            } else {
+                self?.playlistManager?.playNext()
+            }
             return .success
         }
 
         center.previousTrackCommand.addTarget { [weak self] _ in
-            self?.playlistManager?.playPrevious()
+            if self?.routesToRadio?() == true, let radio = self?.radioManager {
+                Task { await radio.playPrevious() }
+            } else {
+                self?.playlistManager?.playPrevious()
+            }
             return .success
         }
 

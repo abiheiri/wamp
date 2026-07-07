@@ -94,7 +94,11 @@ class SevenSegmentView: NSView {
         defer { if let prev = prev { ctx?.imageInterpolation = prev } }
         for (i, d) in digits.enumerated() {
             guard let sprite = WinampTheme.sprite(.digit(d)) else { continue }
-            sprite.draw(in: NSRect(x: xs[i], y: 0, width: size.width, height: size.height))
+            // Snap to device pixels so all four digits rasterize in phase.
+            let rect = backingAlignedRect(
+                NSRect(x: xs[i], y: 0, width: size.width, height: size.height),
+                options: .alignAllEdgesNearest)
+            sprite.draw(in: rect)
         }
     }
 

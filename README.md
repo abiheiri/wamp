@@ -11,7 +11,7 @@ No Electron. No web views. No dependencies. Just Swift, AppKit, and nostalgia.
 <img
   width="411"
   alt="Wamp main window — player, equalizer and playlist"
-  src="docs/screenshots/wamp-1.2.8.png"
+  src="docs/wamp-1.2.8.png"
 />
 
 <!-- PLACEHOLDER(hero-gif): replace the static shot above with a short GIF —

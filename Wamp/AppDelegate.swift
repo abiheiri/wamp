@@ -90,8 +90,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup system tray
         setupStatusItem()
 
-        // Setup media key handling and Now Playing info
+        // Setup media key handling and Now Playing info. Media next/prev
+        // route like the transport buttons (radio when streaming or the
+        // Radio tab is in view).
         hotKeyManager = HotKeyManager(audioEngine: audioEngine, playlistManager: playlistManager)
+        hotKeyManager.radioManager = radioManager
+        hotKeyManager.routesToRadio = { [weak self] in self?.routesToRadio ?? false }
 
         installJumpToFileShortcut()
 
@@ -478,15 +482,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func stopAction() { audioEngine.stop() }
+
+    /// Next/prev drive the radio list when a stream is playing or the
+    /// playlist panel is on the Radio tab (matching the transport buttons).
+    private var routesToRadio: Bool {
+        audioEngine.activeSource == .stream || mainWindow.playlistView.isShowingRadio
+    }
+
     @objc private func nextAction() {
-        if audioEngine.activeSource == .stream {
+        if routesToRadio {
             Task { await radioManager.playNext() }
         } else {
             playlistManager.playNext()
         }
     }
     @objc private func prevAction() {
-        if audioEngine.activeSource == .stream {
+        if routesToRadio {
             Task { await radioManager.playPrevious() }
         } else {
             playlistManager.playPrevious()

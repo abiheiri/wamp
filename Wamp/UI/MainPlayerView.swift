@@ -76,6 +76,15 @@ class MainPlayerView: NSView {
     private weak var playlistManager: PlaylistManager?
     private weak var radioManager: RadioManager?
 
+    /// Supplied by MainWindow: whether the playlist panel shows the Radio tab.
+    var isViewingRadio: (() -> Bool)?
+
+    /// Transport next/prev drive the radio list when a stream is the active
+    /// source or the user is viewing the Radio tab.
+    private var routesToRadio: Bool {
+        audioEngine?.activeSource == .stream || isViewingRadio?() == true
+    }
+
     // Window dragging state for skinned mode (titleBar is hidden)
     private var dragOrigin: NSPoint?
 
@@ -713,10 +722,12 @@ class MainPlayerView: NSView {
             audioEngine?.balance = value * 2 - 1 // convert 0..1 to -1..1
         }
 
-        // Transport — routes to the playlist or the radio list by active source.
+        // Transport — routes to the radio list when a stream is playing OR the
+        // playlist panel is on the Radio tab, so next/prev step through the
+        // station list you're viewing (favorites or a genre).
         transportBar.onPrevious = { [weak self] in
             guard let self else { return }
-            if self.audioEngine?.activeSource == .stream {
+            if self.routesToRadio {
                 Task { await self.radioManager?.playPrevious() }
             } else {
                 self.playlistManager?.playPrevious()
@@ -742,7 +753,7 @@ class MainPlayerView: NSView {
         transportBar.onStop = { [weak audioEngine] in audioEngine?.stop() }
         transportBar.onNext = { [weak self] in
             guard let self else { return }
-            if self.audioEngine?.activeSource == .stream {
+            if self.routesToRadio {
                 Task { await self.radioManager?.playNext() }
             } else {
                 self.playlistManager?.playNext()

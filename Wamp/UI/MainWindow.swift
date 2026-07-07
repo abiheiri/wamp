@@ -172,11 +172,20 @@ class MainWindow: NSWindow {
         equalizerView.onClose = { [weak self] in self?.showEqualizer = false }
         playlistView.onCloseWindow = { [weak self] in self?.showPlaylist = false }
 
+        // Transport routing follows the viewed tab, not just the audio source.
+        mainPlayerView.isViewingRadio = { [weak self] in
+            self?.playlistView.isShowingRadio ?? false
+        }
+        let routesToRadio: () -> Bool = { [weak self, weak audioEngine] in
+            audioEngine?.activeSource == .stream
+                || self?.playlistView.isShowingRadio == true
+        }
+
         // Mini-transport baked into pledit.bmp's BR corner mirrors the
         // main TransportBar — same play/pause/stop/prev/next semantics
-        // as MainPlayerView, including stream routing by active source.
-        playlistView.onMiniPrev  = { [weak audioEngine, weak playlistManager, weak radioManager] in
-            if audioEngine?.activeSource == .stream {
+        // as MainPlayerView, including radio routing by source or viewed tab.
+        playlistView.onMiniPrev  = { [weak playlistManager, weak radioManager] in
+            if routesToRadio() {
                 Task { await radioManager?.playPrevious() }
             } else {
                 playlistManager?.playPrevious()
@@ -198,8 +207,8 @@ class MainWindow: NSWindow {
         }
         playlistView.onMiniPause = { [weak audioEngine] in audioEngine?.pause() }
         playlistView.onMiniStop  = { [weak audioEngine] in audioEngine?.stop() }
-        playlistView.onMiniNext  = { [weak audioEngine, weak playlistManager, weak radioManager] in
-            if audioEngine?.activeSource == .stream {
+        playlistView.onMiniNext  = { [weak playlistManager, weak radioManager] in
+            if routesToRadio() {
                 Task { await radioManager?.playNext() }
             } else {
                 playlistManager?.playNext()

@@ -15,11 +15,18 @@ class PlaylistManager: ObservableObject {
     }
 
     var filteredTracks: [Track] {
-        guard !searchQuery.isEmpty else { return tracks }
+        filteredIndices.map { tracks[$0] }
+    }
+
+    /// Indices into `tracks` matching the active search filter (all indices
+    /// when the filter is empty). Index-based so duplicate tracks stay
+    /// distinguishable during filtered navigation.
+    var filteredIndices: [Int] {
+        guard !searchQuery.isEmpty else { return Array(tracks.indices) }
         let query = searchQuery.lowercased()
-        return tracks.filter {
-            $0.title.lowercased().contains(query) ||
-            $0.artist.lowercased().contains(query)
+        return tracks.indices.filter {
+            tracks[$0].title.lowercased().contains(query) ||
+            tracks[$0].artist.lowercased().contains(query)
         }
     }
 
@@ -320,19 +327,25 @@ class PlaylistManager: ObservableObject {
         addTracks(resolved)
     }
 
+    /// Steps through the filtered view of the playlist: with a search filter
+    /// active, next moves between matching tracks only. A current track
+    /// outside the filter restarts from the filter's first match.
     func playNext() {
         print("⚡ playNext: currentIndex=\(currentIndex), tracks.count=\(tracks.count)")
         guard !tracks.isEmpty else { return }
+        let list = filteredIndices
+        guard !list.isEmpty else { return }
 
-        let nextIndex = currentIndex + 1
-        if nextIndex >= tracks.count {
+        let position = list.firstIndex(of: currentIndex)
+        let nextPosition = (position ?? -1) + 1
+        if nextPosition >= list.count {
             if audioEngine?.repeatMode == .playlist {
-                playTrack(at: 0)
+                playTrack(at: list[0])
             } else {
                 audioEngine?.stop()
             }
         } else {
-            playTrack(at: nextIndex)
+            playTrack(at: list[nextPosition])
         }
     }
 
@@ -344,11 +357,13 @@ class PlaylistManager: ObservableObject {
             return
         }
 
-        let prevIndex = currentIndex - 1
-        if prevIndex < 0 {
-            playTrack(at: tracks.count - 1)
+        let list = filteredIndices
+        guard !list.isEmpty else { return }
+
+        if let position = list.firstIndex(of: currentIndex), position > 0 {
+            playTrack(at: list[position - 1])
         } else {
-            playTrack(at: prevIndex)
+            playTrack(at: list[list.count - 1])
         }
     }
 
