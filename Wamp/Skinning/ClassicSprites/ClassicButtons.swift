@@ -143,7 +143,7 @@ enum ClassicButtons {
         case .shuffleButton(let active, let pressed):
             return ledTextButton(width: 47, height: 15, text: "SHUFFLE", active: active, pressed: pressed)
         case .repeatButton(let active, let pressed):
-            return ledTextButton(width: 28, height: 15, text: "REP", active: active, pressed: pressed)
+            return repeatButton(active: active, pressed: pressed)
         case .eqToggleButton(let active, let pressed):
             return ledTextButton(width: 23, height: 12, text: "EQ", active: active, pressed: pressed)
         case .plToggleButton(let active, let pressed):
@@ -167,6 +167,36 @@ enum ClassicButtons {
             drawLED(at: NSPoint(x: 3 + o, y: (rect.height - 5) / 2 + o), active: active)
             let textRect = NSRect(x: 8, y: 0, width: rect.width - 9, height: rect.height)
             label(text, in: textRect, offset: NSPoint(x: o, y: o))
+        }
+    }
+
+    /// Repeat toggle: LED plus the classic circular loop-arrow glyph.
+    private static func repeatButton(active: Bool, pressed: Bool) -> NSImage {
+        ClassicDraw.image(width: 28, height: 15) { rect in
+            drawSilverFace(NSRect(x: 0, y: 0, width: rect.width, height: rect.height),
+                           pressed: pressed)
+            let o: CGFloat = pressed ? 1 : 0
+            drawLED(at: NSPoint(x: 3 + o, y: (rect.height - 5) / 2 + o), active: active)
+
+            let ctx = NSGraphicsContext.current
+            let prevAA = ctx?.shouldAntialias
+            ctx?.shouldAntialias = true
+            defer { if let v = prevAA { ctx?.shouldAntialias = v } }
+
+            // Open loop with an arrowhead on its lower edge.
+            let loop = NSBezierPath(roundedRect: NSRect(x: 12 + o, y: 4.5 + o, width: 12, height: 6),
+                                    xRadius: 3, yRadius: 3)
+            loop.lineWidth = 1.2
+            labelColor.setStroke()
+            loop.stroke()
+
+            let arrow = NSBezierPath()
+            arrow.move(to: NSPoint(x: 14.5 + o, y: 10.5 + o))
+            arrow.line(to: NSPoint(x: 18.5 + o, y: 8 + o))
+            arrow.line(to: NSPoint(x: 18.5 + o, y: 13 + o))
+            arrow.close()
+            labelColor.setFill()
+            arrow.fill()
         }
     }
 
