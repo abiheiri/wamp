@@ -13,16 +13,24 @@ extension NSColor {
 
 final class WinampTheme {
     // MARK: - Skin facade
-    static var provider: SkinProvider = BuiltInSkin()
+    static var provider: SkinProvider = BuiltInClassicSkin()
 
     static func sprite(_ key: SpriteKey) -> NSImage? {
         provider.sprite(key)
     }
 
-    /// True when a real skin is loaded. Views check this in `draw()` to branch
-    /// between drawSkinned and drawBuiltIn. See spec §7.1.
+    /// True when classic chrome (skinned layout/draw paths) is in effect.
+    /// Always true since BuiltInClassicSkin became the default provider; the
+    /// legacy drawBuiltIn branches remain until their removal.
     static var skinIsActive: Bool {
         !(provider is BuiltInSkin)
+    }
+
+    /// True only when a user-loaded .wsz skin is active. Gates affordances
+    /// that exist in the built-in classic look but not under real skins
+    /// (search bar, radio genre browser).
+    static var isUserSkin: Bool {
+        provider is WinampClassicSkin
     }
 
     // MARK: - Frame

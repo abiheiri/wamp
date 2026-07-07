@@ -35,7 +35,7 @@ final class BuiltInClassicSkin: SkinProvider {
         )
     }
 
-    var eqGraphLineColors: [NSColor] { [] }
-    var eqPreampLineColor: NSColor { .green }
+    var eqGraphLineColors: [NSColor] { ClassicEqualizer.graphLineColors }
+    var eqPreampLineColor: NSColor { ClassicEqualizer.preampLineColor }
     var mainWindowRegion: NSBezierPath? { nil }
 }

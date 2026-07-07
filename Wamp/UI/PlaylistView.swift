@@ -180,7 +180,7 @@ class PlaylistView: NSView {
 
     private func setMode(_ newMode: PanelMode) {
         mode = newMode
-        let radio = (newMode == .radio) && !WinampTheme.skinIsActive
+        let radio = (newMode == .radio) && !WinampTheme.isUserSkin
         playlistTab.isActive = !(newMode == .radio)
         radioTab.isActive = (newMode == .radio)
         genreButton.isHidden = !radio
@@ -189,6 +189,7 @@ class PlaylistView: NSView {
         searchField.stringValue = (newMode == .radio)
             ? (radioManager?.searchQuery ?? "")
             : (playlistManager?.searchQuery ?? "")
+        needsLayout = true   // genre button visibility changes the search row split
         tableView.reloadData()
         if newMode == .radio {
             highlightCurrentStation()
@@ -310,22 +311,26 @@ class PlaylistView: NSView {
     /// search bar (it used Ctrl+J Jump-To-File), so searchField hides too.
     private func applySkinVisibility() {
         let active = WinampTheme.skinIsActive
+        let userSkin = WinampTheme.isUserSkin
         titleBar.isHidden = active
         infoLabel.isHidden = active
-        searchField.isHidden = active
-        addButton.isHidden = active
-        remButton.isHidden = active
-        selButton.isHidden = active
-        miscButton.isHidden = active
-        listOptsButton.isHidden = active
+        // Wamp affordances that survive in the built-in classic chrome but
+        // not under user skins: the search field and the button row (drawn
+        // as classic silver WinampButtons over the plain bottom corners).
+        searchField.isHidden = userSkin
+        addButton.isHidden = userSkin
+        remButton.isHidden = userSkin
+        selButton.isHidden = userSkin
+        miscButton.isHidden = userSkin
+        listOptsButton.isHidden = userSkin
         // The Radio tab strip has no skinned equivalent — hide it under a skin
         // and fall back to the playlist list so the user isn't stranded.
         playlistTab.isHidden = active
         radioTab.isHidden = active
-        if active && mode == .radio {
+        if userSkin && mode == .radio {
             setMode(.playlist)
         } else {
-            let radioVisible = !active && mode == .radio
+            let radioVisible = !userSkin && mode == .radio
             genreButton.isHidden = !radioVisible
         }
         // Classic Winamp playlist rows are tight — text.bmp glyphs are 6 px tall.
@@ -464,6 +469,13 @@ class PlaylistView: NSView {
         style.normalBG.setFill()
         NSRect(x: 12, y: stripY, width: w - 32, height: Self.skinnedTabStripH).fill()
 
+        // The classic search row sits directly below the tabs — fill its band
+        // so the field reads as part of the chrome.
+        if !WinampTheme.isUserSkin {
+            style.normalBG.setFill()
+            NSRect(x: 12, y: stripY - 14, width: w - 32, height: 14).fill()
+        }
+
         let glyphY = round(stripY + (Self.skinnedTabStripH - TextSpriteRenderer.glyphHeight) / 2)
         let plRect = skinnedPlaylistTabRect()
         let raRect = skinnedRadioTabRect()
@@ -496,28 +508,50 @@ class PlaylistView: NSView {
         let bottomH: CGFloat = 38
         let leftW: CGFloat = 12
         let rightW: CGFloat = 20
+        let userSkin = WinampTheme.isUserSkin
 
-        // The PLAYLIST | RADIO tab strip occupies a thin band under the title bar.
+        // The PLAYLIST | RADIO tab strip occupies a thin band under the title
+        // bar. The built-in classic look keeps Wamp's search bar as a slim
+        // row below it; user skins have no such affordance.
         let tabH = Self.skinnedTabStripH
+        let searchH: CGFloat = userSkin ? 0 : 14
         titleBar.frame = NSRect(x: 0, y: h - topH, width: w, height: topH)
         scrollView.frame = NSRect(
             x: leftW,
             y: bottomH,
             width: w - leftW - rightW,
-            height: h - topH - tabH - bottomH
+            height: h - topH - tabH - searchH - bottomH
         )
 
-        // Hidden in skinned mode — collapse frames so they don't intercept hits.
-        searchField.frame = .zero
-        addButton.frame = .zero
-        remButton.frame = .zero
-        selButton.frame = .zero
-        miscButton.frame = .zero
-        listOptsButton.frame = .zero
+        // Tabs are drawn (not NSButtons) in classic chrome; the info readout
+        // renders inside the bottom-right LCD via drawClassic.
         infoLabel.frame = .zero
         playlistTab.frame = .zero
         radioTab.frame = .zero
-        genreButton.frame = .zero
+
+        if userSkin {
+            // Hidden under user skins — collapse frames so they don't
+            // intercept hits.
+            searchField.frame = .zero
+            addButton.frame = .zero
+            remButton.frame = .zero
+            selButton.frame = .zero
+            miscButton.frame = .zero
+            listOptsButton.frame = .zero
+            genreButton.frame = .zero
+        } else {
+            let rowY = h - topH - tabH - searchH
+            let genreW: CGFloat = genreButton.isHidden ? 0 : 54
+            searchField.frame = NSRect(x: leftW + 2, y: rowY + 1,
+                                       width: w - leftW - rightW - 4 - genreW, height: 13)
+            genreButton.frame = genreButton.isHidden ? .zero
+                : NSRect(x: w - rightW - genreW, y: rowY + 1, width: genreW - 2, height: 13)
+            // Button row over the plain classic bottom corners.
+            for (i, btn) in [addButton, remButton, selButton, miscButton].enumerated() {
+                btn.frame = NSRect(x: 6 + CGFloat(i) * 29, y: 10, width: 27, height: 16)
+            }
+            listOptsButton.frame = NSRect(x: w - 54, y: 19, width: 48, height: 14)
+        }
 
         // Native scroller is hidden in skinned mode — full column width.
         let newWidth = scrollView.frame.width - 2
@@ -528,8 +562,8 @@ class PlaylistView: NSView {
         }
 
         // Skin scroll thumb sits in the right-tile area, centered horizontally
-        // within the 20px tile. Track top is below the tab strip.
-        let trackTop = h - topH - tabH
+        // within the 20px tile. Track top is below the tab strip / search row.
+        let trackTop = h - topH - tabH - searchH
         let trackBottom = bottomH
         let trackH = max(0, trackTop - trackBottom)
         skinScroller.frame = NSRect(x: w - 20 + 6, y: trackBottom, width: 8, height: trackH)
