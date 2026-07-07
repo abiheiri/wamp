@@ -183,17 +183,22 @@ enum ClassicButtons {
             ctx?.shouldAntialias = true
             defer { if let v = prevAA { ctx?.shouldAntialias = v } }
 
-            // Open loop with an arrowhead on its lower edge.
+            // Open loop: stroke the ring, break its bottom-left arc by
+            // painting the face color back over it, then terminate the line
+            // with a left-pointing arrowhead at the break.
             let loop = NSBezierPath(roundedRect: NSRect(x: 12 + o, y: 4.5 + o, width: 12, height: 6),
                                     xRadius: 3, yRadius: 3)
             loop.lineWidth = 1.2
             labelColor.setStroke()
             loop.stroke()
 
+            NSColor(hex: pressed ? 0xA3B5C0 : 0xB0C3CD).setFill()
+            NSRect(x: 11 + o, y: 7.5 + o, width: 5, height: 4.5).fill()
+
             let arrow = NSBezierPath()
-            arrow.move(to: NSPoint(x: 14.5 + o, y: 10.5 + o))
-            arrow.line(to: NSPoint(x: 18.5 + o, y: 8 + o))
-            arrow.line(to: NSPoint(x: 18.5 + o, y: 13 + o))
+            arrow.move(to: NSPoint(x: 13.5 + o, y: 10.5 + o))
+            arrow.line(to: NSPoint(x: 17.5 + o, y: 8 + o))
+            arrow.line(to: NSPoint(x: 17.5 + o, y: 13 + o))
             arrow.close()
             labelColor.setFill()
             arrow.fill()
