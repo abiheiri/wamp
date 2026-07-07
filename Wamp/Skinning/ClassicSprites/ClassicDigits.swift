@@ -37,6 +37,14 @@ enum ClassicDigits {
                 }
                 y += 2
             }
+            // Antialias the segments: at the app's fractional window scale,
+            // hard-edged 1pt columns round to different device-pixel widths
+            // (the left "|" renders thinner than the right one). Soft edges
+            // keep every segment visually equal.
+            let ctx = NSGraphicsContext.current
+            let prevAA = ctx?.shouldAntialias
+            ctx?.shouldAntialias = true
+            defer { if let v = prevAA { ctx?.shouldAntialias = v } }
             for seg in segs {
                 switch seg {
                 case "A": ClassicDraw.px(1, 0, 7, 1, lit)
