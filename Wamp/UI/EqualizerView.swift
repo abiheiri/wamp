@@ -408,11 +408,19 @@ class EqualizerView: NSView {
         responseView.bands = preset.bands
     }
 
+    /// Fired by the × baked into the classic/skinned title strip.
+    var onClose: (() -> Void)?
+
     // MARK: - Window dragging (skinned mode)
     override func mouseDown(with event: NSEvent) {
         guard WinampTheme.skinIsActive else { super.mouseDown(with: event); return }
         let point = convert(event.locationInWindow, from: nil)
         guard point.y >= bounds.height - 14 else { super.mouseDown(with: event); return }
+        // Close glyph at the strip's right edge (sprite x=264, 9×9).
+        if point.x >= bounds.width - 13 {
+            onClose?()
+            return
+        }
         dragOrigin = event.locationInWindow
     }
 

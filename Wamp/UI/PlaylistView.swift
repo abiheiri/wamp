@@ -37,6 +37,8 @@ class PlaylistView: NSView {
 
     // Set by MainWindow.bindToModels / AppDelegate. Baked into pledit.bmp's
     // BR corner; mirrors classic Winamp's playlist-local transport row.
+    /// Fired by the × baked into the classic chrome's top-right corner.
+    var onCloseWindow: (() -> Void)?
     var onMiniPrev:  (() -> Void)?
     var onMiniPlay:  (() -> Void)?
     var onMiniPause: (() -> Void)?
@@ -1075,8 +1077,13 @@ class PlaylistView: NSView {
         guard WinampTheme.skinIsActive else { super.mouseDown(with: event); return }
         let point = convert(event.locationInWindow, from: nil)
 
-        // Title bar drag zone (top 20px)
+        // Title bar drag zone (top 20px) — the × baked into the top-right
+        // corner closes (hides) the playlist.
         if point.y >= bounds.height - 20 {
+            if point.x >= bounds.width - 13 {
+                onCloseWindow?()
+                return
+            }
             dragOrigin = event.locationInWindow
             return
         }

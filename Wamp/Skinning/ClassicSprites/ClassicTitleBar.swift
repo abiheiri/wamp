@@ -40,9 +40,11 @@ enum ClassicTitleBar {
             title.draw(at: NSPoint(x: tx, y: (CGFloat(height) - size.height) / 2),
                        withAttributes: attrs)
 
+            // With only a close button on the right, the pipe runs up to it.
             let pipesLeft = menuGlyph ? pipesStart : 8
+            let pipesRight = minimizeAndShade ? pipesEnd : 260
             drawPipe(from: pipesLeft, to: (tx - 4).rounded(.down), active: active)
-            drawPipe(from: (tx + size.width + 4).rounded(.up), to: pipesEnd, active: active)
+            drawPipe(from: (tx + size.width + 4).rounded(.up), to: pipesRight, active: active)
 
             // Baked window buttons at the hit rects TitleBarView uses
             // (width-33 / width-22 / width-11).
@@ -56,6 +58,12 @@ enum ClassicTitleBar {
 
     static func closeButton(pressed: Bool) -> NSImage {
         button(pressed ? closePressed : closeUnpressed)
+    }
+
+    /// Draws the gold close glyph directly (used by the playlist top-right
+    /// corner, which bakes its own ×).
+    static func drawCloseGlyph(at origin: NSPoint) {
+        ClassicDraw.pixelMap(closeUnpressed, at: origin, colors: glyphColors)
     }
 
     static func shadeButton(pressed: Bool) -> NSImage {

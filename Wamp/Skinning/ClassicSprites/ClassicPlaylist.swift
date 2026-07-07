@@ -30,7 +30,9 @@ enum ClassicPlaylist {
                 ClassicDraw.px(0, 0, 1, 20, edgeDark)
                 ClassicDraw.px(1, 1, 1, 19, edgeLight)
             } else {
-                drawPipes(from: 0, to: rect.width - 4, active: active)
+                // Pipes stop short of the baked close glyph.
+                drawPipes(from: 0, to: 11, active: active)
+                ClassicTitleBar.drawCloseGlyph(at: NSPoint(x: 13, y: 5))
                 ClassicDraw.px(24, 0, 1, 20, NSColor(hex: 0x14141D))
                 ClassicDraw.px(23, 1, 1, 19, NSColor(hex: 0x52525F))
             }
