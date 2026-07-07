@@ -44,39 +44,21 @@ enum ClassicSprites {
         case .eqSliderBackground(let position):
             return ClassicEqualizer.sliderBackground(position: position)
         case .eqSliderThumb(let pressed):
-            return ClassicButtons.fromSheet(pressed ? ClassicEQSheets.eqThumbPressed
-                                                    : ClassicEQSheets.eqThumb,
-                                            colors: ClassicEQSheets.colors)
+            return ClassicSliders.eqThumb(pressed: pressed)
         case .eqOnButton(let active, let pressed):
-            return ClassicButtons.fromSheet(eqSheet(active, pressed,
-                                                    ClassicEQSheets.eqOnOff, ClassicEQSheets.eqOnOffPressed,
-                                                    ClassicEQSheets.eqOnActive, ClassicEQSheets.eqOnActivePressed),
-                                            colors: ClassicEQSheets.colors)
+            return ClassicButtons.ledTextButton(width: 26, height: 12, text: "ON",
+                                                active: active, pressed: pressed)
         case .eqAutoButton(let active, let pressed):
-            return ClassicButtons.fromSheet(eqSheet(active, pressed,
-                                                    ClassicEQSheets.eqAutoOff, ClassicEQSheets.eqAutoOffPressed,
-                                                    ClassicEQSheets.eqAutoActive, ClassicEQSheets.eqAutoActivePressed),
-                                            colors: ClassicEQSheets.colors)
+            return ClassicButtons.ledTextButton(width: 32, height: 12, text: "AUTO",
+                                                active: active, pressed: pressed)
         case .eqPresetsButton(let pressed):
-            return ClassicButtons.fromSheet(pressed ? ClassicEQSheets.eqPresetsPressed
-                                                    : ClassicEQSheets.eqPresets,
-                                            colors: ClassicEQSheets.colors)
+            return ClassicButtons.textButton(width: 44, height: 12, text: "PRESETS",
+                                             pressed: pressed)
         case .eqGraphBackground:
             return ClassicButtons.fromSheet(ClassicEQSheets.eqGraphBg,
                                             colors: ClassicEQSheets.colors)
         default:
             return nil
-        }
-    }
-
-    private static func eqSheet(_ active: Bool, _ pressed: Bool,
-                                _ off: [String], _ offPressed: [String],
-                                _ on: [String], _ onPressed: [String]) -> [String] {
-        switch (active, pressed) {
-        case (false, false): return off
-        case (false, true):  return offPressed
-        case (true, false):  return on
-        case (true, true):   return onPressed
         }
     }
 }

@@ -33,11 +33,18 @@ enum ClassicSliders {
         }
     }
 
+    /// Gold bar thumb: horizontal highlight/shadow bands drawn as continuous
+    /// rows (crisp at fractional scales), dark frame.
     static func seekThumb(pressed: Bool) -> NSImage {
         ClassicDraw.image(width: 29, height: 10) { _ in
-            ClassicDraw.pixelMap(pressed ? seekThumbPressedMap : seekThumbMap,
-                                 at: .zero,
-                                 colors: pressed ? seekThumbPressedColors : seekThumbColors)
+            let rows: [UInt32] = pressed
+                ? [0xA0874C, 0xB69F62, 0xCFBA81, 0xB69F62, 0x7C632C, 0x8F743B, 0xB69F62, 0x8F743B, 0x644B19, 0x180B00]
+                : [0xD2C18D, 0x6F5724, 0xF1E6BB, 0xF2F2F2, 0x61491A, 0x9F874F, 0xF1E6BB, 0x9F874F, 0x7A632C, 0x0A0202]
+            for (i, hex) in rows.enumerated() {
+                ClassicDraw.px(1, CGFloat(i), 27, 1, NSColor(hex: hex))
+            }
+            ClassicDraw.px(0, 0, 1, 10, NSColor(hex: 0x525260))
+            ClassicDraw.px(28, 0, 1, 10, NSColor(hex: pressed ? 0x180B00 : 0x0A0202))
         }
     }
 
@@ -68,11 +75,38 @@ enum ClassicSliders {
         }
     }
 
+    /// Silver grip thumb (volume/balance). Pressed inverts to the dark face
+    /// with light grips, like VOLUME.BMP's pressed variant.
     static func volumeThumb(pressed: Bool) -> NSImage {
-        ClassicDraw.image(width: 14, height: 11) { _ in
-            ClassicDraw.pixelMap(pressed ? silverThumbPressedMap : silverThumbMap,
-                                 at: .zero,
-                                 colors: pressed ? silverThumbPressedColors : silverThumbColors)
+        silverThumb(width: 14, height: 11, pressed: pressed, gripCount: 3)
+    }
+
+    /// EQ band thumb — same family, square with a center grip.
+    static func eqThumb(pressed: Bool) -> NSImage {
+        silverThumb(width: 11, height: 11, pressed: pressed, gripCount: 1)
+    }
+
+    private static func silverThumb(width: Int, height: Int, pressed: Bool,
+                                    gripCount: Int) -> NSImage {
+        ClassicDraw.image(width: width, height: height) { rect in
+            let w = rect.width, h = rect.height
+            let face = NSColor(hex: pressed ? 0x10151B : 0x9DAEB7)
+            let grip = NSColor(hex: pressed ? 0xFFFFFF : 0x0B0D11)
+            ClassicDraw.px(0, 0, w, h, NSColor(hex: 0x0B0D11))
+            ClassicDraw.px(1, 1, w - 2, h - 2, face)
+            ClassicDraw.px(1, 1, w - 2, 1, NSColor(hex: 0xD2E1E5))
+            ClassicDraw.px(1, 1, 1, h - 2, NSColor(hex: 0xD2E1E5))
+            if !pressed {
+                ClassicDraw.px(1, h - 3, w - 2, 1, NSColor(hex: 0x687082))
+                ClassicDraw.px(1, h - 2, w - 2, 1, NSColor(hex: 0x3A4858))
+                ClassicDraw.px(w - 2, 1, 1, h - 2, NSColor(hex: 0x687082))
+            }
+            let mid = (w / 2).rounded()
+            let spread: CGFloat = 2
+            for g in 0..<gripCount {
+                let gx = mid + (CGFloat(g) - CGFloat(gripCount - 1) / 2) * spread - 0.5
+                ClassicDraw.px(gx, 3, 1, h - 6, grip)
+            }
         }
     }
 
@@ -82,90 +116,4 @@ enum ClassicSliders {
         let b = min(1, CGFloat(hex & 0xFF) / 255 * factor)
         return NSColor(srgbRed: r, green: g, blue: b, alpha: 1)
     }
-
-    // MARK: - Thumb pixel maps (from POSBAR.BMP / VOLUME.BMP)
-
-    private static let seekThumbMap = [
-        "abbbbbbbbbbbbbbbbbbbbbbbbbbbc",
-        "dbeeeeeeeeeeeeeeeeeeeeeeeefcg",
-        "dbehiiiiiiiiiiiiiiiiiiiiifjcg",
-        "dbeifffffffffffffffffffffijcg",
-        "dbeikkkkkkkkkkkkkkkkkkkkkijcg",
-        "dbeijjjjjjjjjjjjjjjjjjjjjijcg",
-        "dbefiiiiiiiiiiiiiiiiiiiiiljcg",
-        "dbfmjjjjjjjjjjjjjjjjjjjjjjkcg",
-        "dbccccccccccccccccccccccccccg",
-        "dgggggggggggggggggggggggggggg",
-    ]
-    private static let seekThumbColors: [Character: NSColor] = [
-        "a": NSColor(hex: 0x525360), "b": NSColor(hex: 0xD2C18D),
-        "c": NSColor(hex: 0x7A632C), "d": NSColor(hex: 0x525260),
-        "e": NSColor(hex: 0x6F5724), "f": NSColor(hex: 0xF2F2F2),
-        "g": NSColor(hex: 0x0A0202), "h": NSColor(hex: 0xB8A46B),
-        "i": NSColor(hex: 0xF1E6BB), "j": NSColor(hex: 0x9F874F),
-        "k": NSColor(hex: 0x61491A), "l": NSColor(hex: 0x8A703A),
-        "m": NSColor(hex: 0xE9DCAD),
-    ]
-
-    private static let seekThumbPressedMap = [
-        "abbbbbbbbbbbbbbbbbbbbbbbbbbbc",
-        "abaaaaaaaaaaaaaaaaaaaaaaaadce",
-        "abafgggggggggggggggggggggdhce",
-        "ibagdddddddddddddddddddddghce",
-        "ibagjjjjjjjjjjjjjjjjjjjjjghce",
-        "ibaghhhhhhhhhhhhhhhhhhhhhghce",
-        "jbadgggggggggggggggggggggkhce",
-        "jbdlhhhhhhhhhhhhhhhhhhhhhhjce",
-        "mbcccccccccccccccccccccccccce",
-        "meeeeeeeeeeeeeeeeeeeeeeeeeeee",
-    ]
-    private static let seekThumbPressedColors: [Character: NSColor] = [
-        "a": NSColor(hex: 0x5C4415), "b": NSColor(hex: 0xA0874C),
-        "c": NSColor(hex: 0x644B19), "d": NSColor(hex: 0xCFBA81),
-        "e": NSColor(hex: 0x180B00), "f": NSColor(hex: 0x8F743B),
-        "g": NSColor(hex: 0xB69F62), "h": NSColor(hex: 0x7C632C),
-        "i": NSColor(hex: 0x583F12), "j": NSColor(hex: 0x533B10),
-        "k": NSColor(hex: 0x6D5520), "l": NSColor(hex: 0xB0995C),
-        "m": NSColor(hex: 0x4E360E),
-    ]
-
-    private static let silverThumbMap = [
-        "abbbbbbbbbbbba",
-        "bccccccccccccb",
-        "dceeeeeeeeefgd",
-        "dceebebebeefgd",
-        "dceebebebeefgd",
-        "dceebebebeefgd",
-        "dceebebebeefgd",
-        "dceeeeeeeeefgb",
-        "dcffffffffffgb",
-        "bggggggggggggb",
-        "abbbbbbbbbbbba",
-    ]
-    private static let silverThumbColors: [Character: NSColor] = [
-        "a": NSColor(hex: 0x232334), "b": NSColor(hex: 0x0B0D11),
-        "c": NSColor(hex: 0xD2E1E5), "d": NSColor(hex: 0x000000),
-        "e": NSColor(hex: 0x9DAEB7), "f": NSColor(hex: 0x687082),
-        "g": NSColor(hex: 0x3A4858),
-    ]
-
-    private static let silverThumbPressedMap = [
-        "abbbbbbbbbbbba",
-        "bcccccccccccbb",
-        "dcdddddddddedd",
-        "dcdddddddddedd",
-        "dcddfdfdfddedd",
-        "dcddfdfdfddedd",
-        "dcddfdfdfddedd",
-        "dcdddddddddegb",
-        "dcdddddddddegb",
-        "beeeeeeeeeeebb",
-        "agbggbbggbbbba",
-    ]
-    private static let silverThumbPressedColors: [Character: NSColor] = [
-        "a": NSColor(hex: 0x232334), "b": NSColor(hex: 0x0B0D11),
-        "c": NSColor(hex: 0xD2E1E5), "d": NSColor(hex: 0x000000),
-        "e": NSColor(hex: 0x3A4858), "f": NSColor(hex: 0xFFFFFF),
-        "g": NSColor(hex: 0x131820),
-    ]
 }
