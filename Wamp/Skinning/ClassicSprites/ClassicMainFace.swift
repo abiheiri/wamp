@@ -26,7 +26,7 @@ enum ClassicMainFace {
         // vertical variation is under ±2% — not worth reproducing.
         ClassicDraw.hRamp(y: 0, height: 116, width: 275,
                           left: NSColor(hex: 0x12121B),
-                          mid: NSColor(hex: 0x2A2945),
+                          mid: NSColor(hex: 0x2B2A48),
                           right: NSColor(hex: 0x1D1C2E))
     }
 
@@ -72,9 +72,11 @@ enum ClassicMainFace {
             ClassicDraw.px(22, y, 1, 1, Int(y - 42) % 4 == 0 ? dimmer : bright)
             y += 2
         }
+        // Baked time colon: two green dashes with dimmed dots between.
         ClassicDraw.px(72, 30, 3, 1, NSColor(hex: 0x22FB0A))
         ClassicDraw.px(72, 32, 1, 1, NSColor(hex: 0x1A1A2A))
         ClassicDraw.px(74, 32, 1, 1, NSColor(hex: 0x1A1A2A))
+        ClassicDraw.px(72, 34, 3, 1, NSColor(hex: 0x22FB0A))
     }
 
     private static func drawMarqueeWell() {

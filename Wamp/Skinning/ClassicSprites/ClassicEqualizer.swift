@@ -25,10 +25,14 @@ enum ClassicEqualizer {
 
     static func background() -> NSImage {
         ClassicDraw.image(width: 275, height: 116) { _ in
+            // Dark base with bright "glow" bands behind the preamp column and
+            // the band-slider bank — the sheet's most distinctive shading.
             ClassicDraw.hRamp(y: 0, height: 116, width: 275,
                               left: NSColor(hex: 0x12121B),
-                              mid: NSColor(hex: 0x2A2945),
+                              mid: NSColor(hex: 0x1D1C2E),
                               right: NSColor(hex: 0x1D1C2E))
+            glowBand(from: 12, to: 44)
+            glowBand(from: 70, to: 266)
             ClassicDraw.windowFrame(width: 275, height: 116)
             // Baked details extracted 1:1 from the sheet: the tick ladder,
             // the three gold dB labels with their dashed guide rows, and the
@@ -62,6 +66,16 @@ enum ClassicEqualizer {
             ClassicDraw.px(8, 3, 1, 58, NSColor(hex: 0x7A7B8B))
             ClassicDraw.px(8, 61, 1, 1, NSColor(hex: 0x706F83))
         }
+    }
+
+    /// Soft bright column with faded edges (drawn over the dark base).
+    private static func glowBand(from x0: CGFloat, to x1: CGFloat) {
+        let dark = NSColor(hex: 0x1C1C2D)
+        let bright = NSColor(hex: 0x2A2946)
+        let fade = min(12, (x1 - x0) / 4)
+        NSGradient(colorsAndLocations: (dark, 0), (bright, fade / (x1 - x0)),
+                   (bright, 1 - fade / (x1 - x0)), (dark, 1))?
+            .draw(in: NSRect(x: x0, y: 2, width: x1 - x0, height: 112), angle: 0)
     }
 
     private static func shade(_ hex: UInt32, _ factor: CGFloat) -> NSColor {

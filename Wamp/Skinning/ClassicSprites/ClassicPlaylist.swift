@@ -7,7 +7,7 @@
 import AppKit
 
 enum ClassicPlaylist {
-    private static let body = NSColor(hex: 0x26253F)
+    private static let body = NSColor(hex: 0x2C2B49)
     private static let edgeDark = NSColor(hex: 0x0C0C10)
     private static let edgeLight = NSColor(hex: 0x4F4F5A)
     private static let innerDark = NSColor(hex: 0x131420)
@@ -120,12 +120,18 @@ enum ClassicPlaylist {
             drawBottomBody(width: rect.width)
             ClassicDraw.px(149, 0, 1, 38, NSColor(hex: 0x14141D))
             ClassicDraw.px(148, 0, 1, 37, NSColor(hex: 0x52525F))
-            // Running-time LCD well (drawClassic renders the text inside).
-            ClassicDraw.px(4, 8, 79, 1, innerDark)
-            ClassicDraw.px(4, 8, 1, 12, innerDark)
-            ClassicDraw.px(5, 9, 78, 11, .black)
-            ClassicDraw.px(83, 9, 1, 11, NSColor(hex: 0x565565))
-            ClassicDraw.px(5, 20, 79, 1, NSColor(hex: 0x565565))
+            // Running-time LCD well (drawClassic renders the text inside) —
+            // full width like the sheet's, local x 5..96.
+            ClassicDraw.px(4, 7, 94, 1, NSColor(hex: 0x1E1D30))
+            ClassicDraw.px(4, 7, 1, 13, NSColor(hex: 0x1E1D30))
+            ClassicDraw.px(5, 8, 92, 12, .black)
+            ClassicDraw.px(97, 8, 1, 13, NSColor(hex: 0x50505D))
+            ClassicDraw.px(5, 20, 93, 1, NSColor(hex: 0x626179))
+            // Selected-track time LCD right of the mini transport, with the
+            // sheet's baked colon.
+            ClassicDraw.px(64, 22, 33, 12, .black)
+            ClassicDraw.px(83, 24, 2, 1, NSColor(hex: 0x21FE06))
+            ClassicDraw.px(83, 27, 2, 1, NSColor(hex: 0x21FE06))
             // Mini transport row at the hit rects PlaylistView routes
             // (local x = 3 + 10i, y = 22, 10×10 each).
             let icons: [(NSPoint) -> Void] = [miniPrev, miniPlay, miniPause,
@@ -193,20 +199,18 @@ enum ClassicPlaylist {
 
     // MARK: - Scroll handle
 
+    /// Gold-striped handle, matching PLEDIT.BMP: vertical bands of light
+    /// gold / dark gold with a cream highlight column.
     static func scrollHandle(pressed: Bool) -> NSImage {
         ClassicDraw.image(width: 8, height: 18) { _ in
-            let face = NSColor(hex: pressed ? 0x10151B : 0x9DAEB7)
-            ClassicDraw.px(0, 0, 8, 18, NSColor(hex: 0x0B0D11))
-            ClassicDraw.px(1, 1, 6, 16, face)
-            ClassicDraw.px(1, 1, 6, 1, NSColor(hex: 0xD2E1E5))
-            ClassicDraw.px(1, 1, 1, 16, NSColor(hex: 0xD2E1E5))
-            if !pressed {
-                ClassicDraw.px(1, 16, 6, 1, NSColor(hex: 0x3A4858))
-                ClassicDraw.px(6, 1, 1, 16, NSColor(hex: 0x687082))
+            let cols: [UInt32] = pressed
+                ? [0xA0884C, 0x614A1A, 0xB8A46B, 0x4E360E, 0x7A5E2B, 0xB8A46B, 0x7A5E2B, 0x0A0202]
+                : [0xD1BF8B, 0x7A5E2B, 0xF1E6BA, 0x614A1A, 0xA0884C, 0xF1E6BA, 0xA0884C, 0x0A0202]
+            for (i, hex) in cols.enumerated() {
+                ClassicDraw.px(CGFloat(i), 1, 1, 16, NSColor(hex: hex))
             }
-            let grip = NSColor(hex: pressed ? 0xFFFFFF : 0x0B0D11)
-            ClassicDraw.px(2, 7.5, 4, 1, grip)
-            ClassicDraw.px(2, 10, 4, 1, grip)
+            ClassicDraw.px(0, 0, 8, 1, NSColor(hex: pressed ? 0x7A5E2B : 0xD1BF8B))
+            ClassicDraw.px(0, 17, 8, 1, NSColor(hex: 0x0A0202))
         }
     }
 }
