@@ -90,8 +90,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup system tray
         setupStatusItem()
 
-        // Setup media key handling and Now Playing info
+        // Setup media key handling and Now Playing info. Media next/prev
+        // route like the transport buttons (radio when streaming or the
+        // Radio tab is in view).
         hotKeyManager = HotKeyManager(audioEngine: audioEngine, playlistManager: playlistManager)
+        hotKeyManager.radioManager = radioManager
+        hotKeyManager.routesToRadio = { [weak self] in self?.routesToRadio ?? false }
 
         installJumpToFileShortcut()
 
