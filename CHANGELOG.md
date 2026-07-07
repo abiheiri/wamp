@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.9] - 2026-07-07
+
+### Fixed
+
+- Next/previous now follow the Radio tab when it's in view, stepping through
+  the station list you're browsing (favorites or a genre).
+- With a search filter active, next/previous navigate the filtered results
+  (local playlist and radio).
+- The time display's first LED digit no longer renders with a thinner left
+  segment at the default window scale.
+
 ## [1.2.8] - 2026-07-07
 
 ### Added
@@ -18,12 +29,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Real `.wsz` skins: the spectrum analyzer rendered upside-down and the EQ
   sliders only used half their green→red color range.
-- Next/previous now follow the Radio tab when it's in view, stepping through
-  the station list you're browsing (favorites or a genre).
-- With a search filter active, next/previous navigate the filtered results
-  (local playlist and radio).
-- The time display's first LED digit no longer renders with a thinner left
-  segment at the default window scale.
 
 ## [1.2.7] - 2026-07-02
 
