@@ -8,18 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Built-in classic Winamp look.** The unskinned player, equalizer, and
-  playlist now render a native vector recreation of the base-2.91 skin —
-  same layout, colors, and chrome as real Winamp, but crisp at any window
-  scale instead of blurry bitmaps. Includes the gold titlebar pipes, silver
-  transport buttons, LED digits, tinted volume/EQ sliders, and playlist
-  chrome with Wamp's search bar and buttons layered on top.
-- Option+click an EQ band or the balance slider to reset it to center.
+- **Built-in classic Winamp look.** With no skin loaded, all three windows
+  now render a native vector recreation of the base-2.91 skin — the real
+  Winamp layout and colors, crisp at any window scale. Wamp's search bar
+  and playlist buttons remain, restyled to match.
+- Option+click resets an EQ band or the balance slider to center.
 
 ### Fixed
 
-- Real `.wsz` skins now render their spectrum analyzer and EQ sliders with
-  the correct color range (previously inverted/truncated).
+- Real `.wsz` skins: the spectrum analyzer rendered upside-down and the EQ
+  sliders only used half their green→red color range.
 
 ## [1.2.7] - 2026-07-02
 
