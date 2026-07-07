@@ -200,7 +200,7 @@ and balance all work exactly as they do for local files.
 ## Authors
 
 - **Valerii Bakalenko** — original author and maintainer
-- **AL Biheiri** — SHOUTcast radio implementation ([al@forgottheaddress.com](mailto:al@forgottheaddress.com))
+- **AL Biheiri** — faithfully recreated the original Winamp UI; SHOUTcast radio
 
 ---
 
