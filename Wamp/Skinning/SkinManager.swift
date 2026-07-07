@@ -9,7 +9,7 @@ final class SkinManager: ObservableObject {
 
     /// Observers should subscribe to this. After the publisher fires, both
     /// `WinampTheme.provider` and `currentSkin` are guaranteed to be the new value.
-    @Published private(set) var currentSkin: SkinProvider = BuiltInSkin()
+    @Published private(set) var currentSkin: SkinProvider = BuiltInClassicSkin()
 
     private init() {}
 
@@ -29,9 +29,9 @@ final class SkinManager: ObservableObject {
         transition(to: skin)
     }
 
-    /// Restores BuiltInSkin.
+    /// Restores the built-in classic (vector base-2.91) look.
     func unloadSkin() {
-        transition(to: BuiltInSkin())
+        transition(to: BuiltInClassicSkin())
     }
 
     /// Atomic transition: WinampTheme.provider is updated FIRST so that any code path

@@ -167,6 +167,11 @@ class MainWindow: NSWindow {
         equalizerView.bindToModel(audioEngine: audioEngine, playlistManager: playlistManager)
         playlistView.bindToModel(playlistManager: playlistManager, radioManager: radioManager)
 
+        // Close glyphs in the classic chrome hide the section, mirroring the
+        // EQ / PL toggle buttons on the main window.
+        equalizerView.onClose = { [weak self] in self?.showEqualizer = false }
+        playlistView.onCloseWindow = { [weak self] in self?.showPlaylist = false }
+
         // Mini-transport baked into pledit.bmp's BR corner mirrors the
         // main TransportBar — same play/pause/stop/prev/next semantics
         // as MainPlayerView, including stream routing by active source.

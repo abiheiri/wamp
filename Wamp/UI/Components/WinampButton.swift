@@ -54,45 +54,40 @@ class WinampButton: NSView {
 
         let b = bounds
 
-        // Button face gradient
-        let faceTop = isPressed ? WinampTheme.buttonFaceBottom : WinampTheme.buttonFaceTop
-        let faceBot = isPressed ? WinampTheme.buttonFaceTop : WinampTheme.buttonFaceBottom
-        let gradient = NSGradient(starting: faceTop, ending: faceBot)
-        gradient?.draw(in: b, angle: 90)
-
-        // 3D beveled border
-        let borderLight = isPressed ? WinampTheme.buttonBorderDark : WinampTheme.buttonBorderLight
-        let borderDark = isPressed ? WinampTheme.buttonBorderLight : WinampTheme.buttonBorderDark
-
-        borderLight.setStroke()
-        var path = NSBezierPath()
-        path.move(to: NSPoint(x: 0, y: 0))
-        path.line(to: NSPoint(x: 0, y: b.height))
-        path.line(to: NSPoint(x: b.width, y: b.height))
-        path.lineWidth = 1
-        path.stroke()
-
-        borderDark.setStroke()
-        path = NSBezierPath()
-        path.move(to: NSPoint(x: b.width, y: b.height))
-        path.line(to: NSPoint(x: b.width, y: 0))
-        path.line(to: NSPoint(x: 0, y: 0))
-        path.lineWidth = 1
-        path.stroke()
+        // Classic silver face (CBUTTONS family): flat fill, light bevel on
+        // the visual top/left, stepped shadow on bottom/right. AppKit y-up:
+        // visual top = maxY.
+        NSColor(hex: isPressed ? 0xA3B5C0 : 0xB0C3CD).setFill()
+        b.fill()
+        let light = NSColor(hex: isPressed ? 0x3A4858 : 0xEBFFFF)
+        let shadowMid = NSColor(hex: isPressed ? 0xEBFFFF : 0x718194)
+        let shadowDark = NSColor(hex: isPressed ? 0x9DA6BA : 0x3A4858)
+        NSColor(hex: 0x9DA6BA).setFill()
+        NSRect(x: 0, y: b.height - 1, width: b.width, height: 1).fill()
+        NSRect(x: 0, y: 0, width: 1, height: b.height).fill()
+        light.setFill()
+        NSRect(x: 1, y: b.height - 2, width: b.width - 2, height: 1).fill()
+        NSRect(x: 1, y: 1, width: 1, height: b.height - 2).fill()
+        shadowMid.setFill()
+        NSRect(x: 1, y: 1, width: b.width - 2, height: 1).fill()
+        NSRect(x: b.width - 2, y: 1, width: 1, height: b.height - 2).fill()
+        shadowDark.setFill()
+        NSRect(x: 0, y: 0, width: b.width, height: 1).fill()
+        NSRect(x: b.width - 1, y: 0, width: 1, height: b.height).fill()
 
         // Content
+        let pressOffset: CGFloat = isPressed ? 1 : 0
         if let drawIcon = drawIcon {
-            drawIcon(b.insetBy(dx: 4, dy: 3), isActive)
+            drawIcon(b.insetBy(dx: 4, dy: 3).offsetBy(dx: pressOffset, dy: -pressOffset), isActive)
         } else if !title.isEmpty {
-            let color = isActive ? WinampTheme.buttonTextActive : WinampTheme.buttonTextInactive
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: WinampTheme.buttonFont,
-                .foregroundColor: color
+                .foregroundColor: NSColor(hex: 0x2E374C)
             ]
             let size = title.size(withAttributes: attrs)
             let point = NSPoint(
-                x: (b.width - size.width) / 2,
-                y: (b.height - size.height) / 2
+                x: (b.width - size.width) / 2 + pressOffset,
+                y: (b.height - size.height) / 2 - pressOffset
             )
             title.draw(at: point, withAttributes: attrs)
         }

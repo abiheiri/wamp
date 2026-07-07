@@ -11,7 +11,7 @@ No Electron. No web views. No dependencies. Just Swift, AppKit, and nostalgia.
 <img
   width="411"
   alt="Wamp main window — player, equalizer and playlist"
-  src="https://github.com/user-attachments/assets/25b475ea-65ab-4307-a4ce-843adb048fa8"
+  src="docs/screenshots/wamp-1.2.8.png"
 />
 
 <!-- PLACEHOLDER(hero-gif): replace the static shot above with a short GIF —
@@ -200,7 +200,7 @@ and balance all work exactly as they do for local files.
 ## Authors
 
 - **Valerii Bakalenko** — original author and maintainer
-- **AL Biheiri** — SHOUTcast radio implementation ([al@forgottheaddress.com](mailto:al@forgottheaddress.com))
+- **AL Biheiri** — faithfully recreated the original Winamp UI; SHOUTcast radio
 
 ---
 

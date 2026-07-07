@@ -37,6 +37,8 @@ class PlaylistView: NSView {
 
     // Set by MainWindow.bindToModels / AppDelegate. Baked into pledit.bmp's
     // BR corner; mirrors classic Winamp's playlist-local transport row.
+    /// Fired by the × baked into the classic chrome's top-right corner.
+    var onCloseWindow: (() -> Void)?
     var onMiniPrev:  (() -> Void)?
     var onMiniPlay:  (() -> Void)?
     var onMiniPause: (() -> Void)?
@@ -180,7 +182,7 @@ class PlaylistView: NSView {
 
     private func setMode(_ newMode: PanelMode) {
         mode = newMode
-        let radio = (newMode == .radio) && !WinampTheme.skinIsActive
+        let radio = (newMode == .radio) && !WinampTheme.isUserSkin
         playlistTab.isActive = !(newMode == .radio)
         radioTab.isActive = (newMode == .radio)
         genreButton.isHidden = !radio
@@ -189,6 +191,7 @@ class PlaylistView: NSView {
         searchField.stringValue = (newMode == .radio)
             ? (radioManager?.searchQuery ?? "")
             : (playlistManager?.searchQuery ?? "")
+        needsLayout = true   // genre button visibility changes the search row split
         tableView.reloadData()
         if newMode == .radio {
             highlightCurrentStation()
@@ -284,7 +287,10 @@ class PlaylistView: NSView {
     // Skinned PLAYLIST | RADIO tab strip geometry (built once, used by both
     // drawSkinnedTabStrip and mouseDown hit-testing so they never diverge).
     static let skinnedTabStripH: CGFloat = 11
-    private func skinnedTabStripY() -> CGFloat { bounds.height - 20 - Self.skinnedTabStripH }
+    /// Top chrome strip height: real pledit sprites are 20px; the built-in
+    /// classic strip is slimmed to 14px to match the main/EQ title bars.
+    private var skinnedTopH: CGFloat { WinampTheme.isUserSkin ? 20 : 14 }
+    private func skinnedTabStripY() -> CGFloat { bounds.height - skinnedTopH - Self.skinnedTabStripH }
     private func skinnedPlaylistTabRect() -> NSRect {
         NSRect(x: 16, y: skinnedTabStripY(),
                width: TextSpriteRenderer.width(of: "PLAYLIST"), height: Self.skinnedTabStripH)
@@ -310,22 +316,26 @@ class PlaylistView: NSView {
     /// search bar (it used Ctrl+J Jump-To-File), so searchField hides too.
     private func applySkinVisibility() {
         let active = WinampTheme.skinIsActive
+        let userSkin = WinampTheme.isUserSkin
         titleBar.isHidden = active
         infoLabel.isHidden = active
-        searchField.isHidden = active
-        addButton.isHidden = active
-        remButton.isHidden = active
-        selButton.isHidden = active
-        miscButton.isHidden = active
-        listOptsButton.isHidden = active
+        // Wamp affordances that survive in the built-in classic chrome but
+        // not under user skins: the search field and the button row (drawn
+        // as classic silver WinampButtons over the plain bottom corners).
+        searchField.isHidden = userSkin
+        addButton.isHidden = userSkin
+        remButton.isHidden = userSkin
+        selButton.isHidden = userSkin
+        miscButton.isHidden = userSkin
+        listOptsButton.isHidden = userSkin
         // The Radio tab strip has no skinned equivalent — hide it under a skin
         // and fall back to the playlist list so the user isn't stranded.
         playlistTab.isHidden = active
         radioTab.isHidden = active
-        if active && mode == .radio {
+        if userSkin && mode == .radio {
             setMode(.playlist)
         } else {
-            let radioVisible = !active && mode == .radio
+            let radioVisible = !userSkin && mode == .radio
             genreButton.isHidden = !radioVisible
         }
         // Classic Winamp playlist rows are tight — text.bmp glyphs are 6 px tall.
@@ -368,10 +378,10 @@ class PlaylistView: NSView {
 
         // Top row: TL corner (25×20) + repeating top tiles + title bar centerpiece + TR corner
         if let tl = WinampTheme.sprite(.playlistTopLeftCorner(active: isActive)) {
-            tl.draw(in: snap(NSRect(x: 0, y: h - 20, width: 25, height: 20)))
+            tl.draw(in: snap(NSRect(x: 0, y: h - skinnedTopH, width: 25, height: skinnedTopH)))
         }
         if let tr = WinampTheme.sprite(.playlistTopRightCorner(active: isActive)) {
-            tr.draw(in: snap(NSRect(x: w - 25, y: h - 20, width: 25, height: 20)))
+            tr.draw(in: snap(NSRect(x: w - 25, y: h - skinnedTopH, width: 25, height: skinnedTopH)))
         }
 
         // Title centerpiece — pixel-align its rect first, then tile the gaps
@@ -380,7 +390,7 @@ class PlaylistView: NSView {
         // (a half-logical-pixel) is not aligned to a backing pixel.
         if let title = WinampTheme.sprite(.playlistTopTitleBar(active: isActive)) {
             let titleW: CGFloat = 100
-            let titleRect = snap(NSRect(x: (w - titleW) / 2, y: h - 20, width: titleW, height: 20))
+            let titleRect = snap(NSRect(x: (w - titleW) / 2, y: h - skinnedTopH, width: titleW, height: skinnedTopH))
             title.draw(in: titleRect)
 
             if let topTile = WinampTheme.sprite(.playlistTopTile(active: isActive)) {
@@ -388,14 +398,14 @@ class PlaylistView: NSView {
                 var x: CGFloat = 25
                 while x < titleRect.minX {
                     let end = min(x + 25, titleRect.minX)
-                    topTile.draw(in: snap(NSRect(x: x, y: h - 20, width: end - x, height: 20)))
+                    topTile.draw(in: snap(NSRect(x: x, y: h - skinnedTopH, width: end - x, height: skinnedTopH)))
                     x = end // use exact boundary, not accumulated addition
                 }
                 // Right gap: title end → TR corner start
                 x = titleRect.maxX
                 while x < w - 25 {
                     let end = min(x + 25, w - 25)
-                    topTile.draw(in: snap(NSRect(x: x, y: h - 20, width: end - x, height: 20)))
+                    topTile.draw(in: snap(NSRect(x: x, y: h - skinnedTopH, width: end - x, height: skinnedTopH)))
                     x = end
                 }
             }
@@ -404,16 +414,16 @@ class PlaylistView: NSView {
         // Sides: tile vertically, edge-to-edge
         if let lt = WinampTheme.sprite(.playlistLeftTile) {
             var y: CGFloat = 38
-            while y < h - 20 {
-                let end = min(y + 29, h - 20)
+            while y < h - skinnedTopH {
+                let end = min(y + 29, h - skinnedTopH)
                 lt.draw(in: snap(NSRect(x: 0, y: y, width: 12, height: end - y)))
                 y = end
             }
         }
         if let rt = WinampTheme.sprite(.playlistRightTile) {
             var y: CGFloat = 38
-            while y < h - 20 {
-                let end = min(y + 29, h - 20)
+            while y < h - skinnedTopH {
+                let end = min(y + 29, h - skinnedTopH)
                 rt.draw(in: snap(NSRect(x: w - 20, y: y, width: 20, height: end - y)))
                 y = end
             }
@@ -441,11 +451,12 @@ class PlaylistView: NSView {
         // counts into the hundreds still fit.
         // Webamp positions #playlist-running-time-display at top:10, left:7
         // inside the 150×38 BR corner, i.e. absolute (w-150+7, corner-top-10).
-        if let textSheet = WinampTheme.provider.textSheet, let pm = playlistManager {
+        if let pm = playlistManager {
             let info = "\(pm.tracks.count) / \(pm.formattedTotalDurationCompact)"
             let textX = w - 150 + 7
             let textY: CGFloat = 38 - 10 - TextSpriteRenderer.glyphHeight
-            TextSpriteRenderer.draw(info, at: NSPoint(x: textX, y: textY), sheet: textSheet)
+            TextSpriteRenderer.drawClassic(info, at: NSPoint(x: textX, y: textY),
+                                           sheet: WinampTheme.provider.textSheet)
         }
 
         drawSkinnedTabStrip(width: w, height: h)
@@ -455,7 +466,7 @@ class PlaylistView: NSView {
     /// the skinned title bar. The active tab gets an underline in the skin's
     /// "current" color (text.bmp glyphs can't be recolored).
     private func drawSkinnedTabStrip(width w: CGFloat, height h: CGFloat) {
-        guard let textSheet = WinampTheme.provider.textSheet else { return }
+        let textSheet = WinampTheme.provider.textSheet
         let style = WinampTheme.provider.playlistStyle
         let stripY = skinnedTabStripY()
 
@@ -463,11 +474,20 @@ class PlaylistView: NSView {
         style.normalBG.setFill()
         NSRect(x: 12, y: stripY, width: w - 32, height: Self.skinnedTabStripH).fill()
 
+        // The classic search row sits directly below the tabs — fill its band
+        // so the field reads as part of the chrome.
+        if !WinampTheme.isUserSkin {
+            style.normalBG.setFill()
+            NSRect(x: 12, y: stripY - 14, width: w - 32, height: 14).fill()
+        }
+
         let glyphY = round(stripY + (Self.skinnedTabStripH - TextSpriteRenderer.glyphHeight) / 2)
         let plRect = skinnedPlaylistTabRect()
         let raRect = skinnedRadioTabRect()
-        TextSpriteRenderer.draw("PLAYLIST", at: NSPoint(x: plRect.minX, y: glyphY), sheet: textSheet)
-        TextSpriteRenderer.draw("RADIO", at: NSPoint(x: raRect.minX, y: glyphY), sheet: textSheet)
+        TextSpriteRenderer.drawClassic("PLAYLIST", at: NSPoint(x: plRect.minX, y: glyphY),
+                                       sheet: textSheet, color: style.normal)
+        TextSpriteRenderer.drawClassic("RADIO", at: NSPoint(x: raRect.minX, y: glyphY),
+                                       sheet: textSheet, color: style.normal)
 
         style.current.setFill()
         let active = (mode == .radio) ? raRect : plRect
@@ -489,32 +509,55 @@ class PlaylistView: NSView {
     private func layoutSkinned() {
         let w = bounds.width
         let h = bounds.height
-        let topH: CGFloat = 20
+        let topH = skinnedTopH
         let bottomH: CGFloat = 38
         let leftW: CGFloat = 12
         let rightW: CGFloat = 20
+        let userSkin = WinampTheme.isUserSkin
 
-        // The PLAYLIST | RADIO tab strip occupies a thin band under the title bar.
+        // The PLAYLIST | RADIO tab strip occupies a thin band under the title
+        // bar. The built-in classic look keeps Wamp's search bar as a slim
+        // row below it; user skins have no such affordance.
         let tabH = Self.skinnedTabStripH
+        let searchH: CGFloat = userSkin ? 0 : 14
         titleBar.frame = NSRect(x: 0, y: h - topH, width: w, height: topH)
         scrollView.frame = NSRect(
             x: leftW,
             y: bottomH,
             width: w - leftW - rightW,
-            height: h - topH - tabH - bottomH
+            height: h - topH - tabH - searchH - bottomH
         )
 
-        // Hidden in skinned mode — collapse frames so they don't intercept hits.
-        searchField.frame = .zero
-        addButton.frame = .zero
-        remButton.frame = .zero
-        selButton.frame = .zero
-        miscButton.frame = .zero
-        listOptsButton.frame = .zero
+        // Tabs are drawn (not NSButtons) in classic chrome; the info readout
+        // renders inside the bottom-right LCD via drawClassic.
         infoLabel.frame = .zero
         playlistTab.frame = .zero
         radioTab.frame = .zero
-        genreButton.frame = .zero
+
+        if userSkin {
+            // Hidden under user skins — collapse frames so they don't
+            // intercept hits.
+            searchField.frame = .zero
+            addButton.frame = .zero
+            remButton.frame = .zero
+            selButton.frame = .zero
+            miscButton.frame = .zero
+            listOptsButton.frame = .zero
+            genreButton.frame = .zero
+        } else {
+            let rowY = h - topH - tabH - searchH
+            let genreW: CGFloat = genreButton.isHidden ? 0 : 54
+            searchField.frame = NSRect(x: leftW + 2, y: rowY + 1,
+                                       width: w - leftW - rightW - 4 - genreW, height: 13)
+            genreButton.frame = genreButton.isHidden ? .zero
+                : NSRect(x: w - rightW - genreW, y: rowY + 1, width: genreW - 2, height: 13)
+            // Button row over the plain classic bottom corners — classic
+            // pledit geometry (22px buttons at x = 11/40/69/98).
+            for (i, btn) in [addButton, remButton, selButton, miscButton].enumerated() {
+                btn.frame = NSRect(x: 11 + CGFloat(i) * 29, y: 10, width: 22, height: 18)
+            }
+            listOptsButton.frame = NSRect(x: w - 54, y: 19, width: 48, height: 14)
+        }
 
         // Native scroller is hidden in skinned mode — full column width.
         let newWidth = scrollView.frame.width - 2
@@ -525,8 +568,8 @@ class PlaylistView: NSView {
         }
 
         // Skin scroll thumb sits in the right-tile area, centered horizontally
-        // within the 20px tile. Track top is below the tab strip.
-        let trackTop = h - topH - tabH
+        // within the 20px tile. Track top is below the tab strip / search row.
+        let trackTop = h - topH - tabH - searchH
         let trackBottom = bottomH
         let trackH = max(0, trackTop - trackBottom)
         skinScroller.frame = NSRect(x: w - 20 + 6, y: trackBottom, width: 8, height: trackH)
@@ -1038,8 +1081,13 @@ class PlaylistView: NSView {
         guard WinampTheme.skinIsActive else { super.mouseDown(with: event); return }
         let point = convert(event.locationInWindow, from: nil)
 
-        // Title bar drag zone (top 20px)
-        if point.y >= bounds.height - 20 {
+        // Title bar drag zone (top strip) — the × baked into the top-right
+        // corner closes (hides) the playlist.
+        if point.y >= bounds.height - skinnedTopH {
+            if point.x >= bounds.width - 13 {
+                onCloseWindow?()
+                return
+            }
             dragOrigin = event.locationInWindow
             return
         }

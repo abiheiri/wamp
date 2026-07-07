@@ -108,9 +108,9 @@ class WinampSlider: NSView {
             }
 
         case .eqBand:
-            // Winamp bakes the green→red gradient directly into 14 background variants
-            // (position 0 = bottom/-12dB all green, 13 = top/+12dB all red).
-            let bgPos = Int((n * 13).rounded())
+            // Winamp bakes the green→red gradient into 28 background variants
+            // (position 0 = bottom/-12dB all green, 27 = top/+12dB all red).
+            let bgPos = Int((n * 27).rounded())
             if let bg = WinampTheme.sprite(.eqSliderBackground(position: bgPos)) {
                 bg.draw(in: snap(bounds))
             }
@@ -250,7 +250,9 @@ class WinampSlider: NSView {
         // Reset-to-center only makes sense where the midpoint is neutral
         // (balance 0, EQ band 0 dB). On seek/volume a double-click would yank
         // playback to 50% / volume to half instead of honoring the click.
-        if event.clickCount == 2, style == .balance || style == .eqBand {
+        // Option+click resets the same way.
+        if event.clickCount == 2 || event.modifierFlags.contains(.option),
+           style == .balance || style == .eqBand {
             resetToCenter()
             return
         }

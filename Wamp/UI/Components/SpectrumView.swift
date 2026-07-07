@@ -121,9 +121,11 @@ class SpectrumView: NSView {
             let litRows = Int(smoothedData[i] * Float(rows))
             let x = CGFloat(i) * (barWidth + gap)
 
-            // Discrete 16-step bar
+            // Discrete 16-step bar. Winamp's viscolor convention puts index 2
+            // at the TOP row of the 16-row column; r counts bottom-up in
+            // AppKit, so the index runs backwards.
             for r in 0..<litRows {
-                viscolors[2 + r].setFill()
+                viscolors[2 + (rows - 1 - r)].setFill()
                 NSRect(x: x,
                        y: CGFloat(r) * rowHeight,
                        width: barWidth,
