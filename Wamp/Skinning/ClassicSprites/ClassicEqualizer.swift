@@ -25,14 +25,24 @@ enum ClassicEqualizer {
 
     static func background() -> NSImage {
         ClassicDraw.image(width: 275, height: 116) { _ in
-            // Dark base with bright "glow" bands behind the preamp column and
-            // the band-slider bank — the sheet's most distinctive shading.
+            // Dark base with a soft glow pillar behind the preamp and each
+            // band slider, dimmed toward top and bottom — the sheet's cloudy
+            // column shading.
             ClassicDraw.hRamp(y: 0, height: 116, width: 275,
                               left: NSColor(hex: 0x12121B),
-                              mid: NSColor(hex: 0x1D1C2E),
-                              right: NSColor(hex: 0x1D1C2E))
-            glowBand(from: 12, to: 52)
-            glowBand(from: 58, to: 266)
+                              mid: NSColor(hex: 0x201F33),
+                              right: NSColor(hex: 0x17161F))
+            let columns: [CGFloat] = [28] + (0..<10).map { 85 + CGFloat($0) * 18 }
+            for cx in columns {
+                glowPillar(centerX: cx)
+            }
+            // Vertical vignette: darker under the title strip and at the base.
+            NSGradient(colorsAndLocations:
+                (NSColor(hex: 0x12121B).withAlphaComponent(0.55), 0),
+                (NSColor.clear, 0.22),
+                (NSColor.clear, 0.72),
+                (NSColor(hex: 0x12121B).withAlphaComponent(0.45), 1))?
+                .draw(in: NSRect(x: 2, y: 15, width: 271, height: 100), angle: 90)
             ClassicDraw.windowFrame(width: 275, height: 116)
             // Baked details extracted 1:1 from the sheet: the tick ladder,
             // the three gold dB labels with their dashed guide rows, and the
@@ -51,11 +61,11 @@ enum ClassicEqualizer {
     }
 
     /// One 14×63 slider frame: dark left edge, 4px colored line with fade-in
-    /// ends, grey companion column.
+    /// ends, grey companion column. The body is transparent so the window's
+    /// glow shading shows through — flat fills here read as pasted patches.
     static func sliderBackground(position: Int) -> NSImage {
         let hue = lineSweep[max(0, min(27, position))]
         return ClassicDraw.image(width: 14, height: 63) { _ in
-            ClassicDraw.px(0, 0, 14, 63, NSColor(hex: 0x292843))
             ClassicDraw.px(3, 0, 6, 1, NSColor(hex: 0x191827))
             ClassicDraw.px(3, 1, 1, 61, NSColor(hex: 0x0F0F16))
             let fades: [(CGFloat, CGFloat)] = [(1, 0.45), (2, 0.72), (3, 0.88), (60, 0.8)]
@@ -68,14 +78,16 @@ enum ClassicEqualizer {
         }
     }
 
-    /// Soft bright column with faded edges (drawn over the dark base).
-    private static func glowBand(from x0: CGFloat, to x1: CGFloat) {
-        let dark = NSColor(hex: 0x211F35)
-        let bright = NSColor(hex: 0x2A2946)
-        let fade = min(12, (x1 - x0) / 4)
-        NSGradient(colorsAndLocations: (dark, 0), (bright, fade / (x1 - x0)),
-                   (bright, 1 - fade / (x1 - x0)), (dark, 1))?
-            .draw(in: NSRect(x: x0, y: 2, width: x1 - x0, height: 112), angle: 0)
+    /// Soft bright pillar centered on a slider column, fading to transparent
+    /// at its sides so adjacent pillars blend with a gentle seam.
+    private static func glowPillar(centerX: CGFloat) {
+        let bright = NSColor(hex: 0x2F2E50)
+        NSGradient(colorsAndLocations:
+            (bright.withAlphaComponent(0), 0),
+            (bright.withAlphaComponent(0.9), 0.4),
+            (bright.withAlphaComponent(0.9), 0.6),
+            (bright.withAlphaComponent(0), 1))?
+            .draw(in: NSRect(x: centerX - 11, y: 15, width: 22, height: 100), angle: 0)
     }
 
     private static func shade(_ hex: UInt32, _ factor: CGFloat) -> NSColor {
