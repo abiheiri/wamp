@@ -56,7 +56,7 @@ enum ClassicSprites {
                                              pressed: pressed)
         case .eqGraphBackground:
             return ClassicButtons.fromSheet(ClassicEQSheets.eqGraphBg,
-                                            colors: ClassicEQSheets.colors)
+                                            colors: ClassicEQSheets.graphColors)
         case .playlistTopLeftCorner(let active):
             return ClassicPlaylist.topCorner(left: true, active: active)
         case .playlistTopRightCorner(let active):

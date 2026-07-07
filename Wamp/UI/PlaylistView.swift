@@ -287,7 +287,10 @@ class PlaylistView: NSView {
     // Skinned PLAYLIST | RADIO tab strip geometry (built once, used by both
     // drawSkinnedTabStrip and mouseDown hit-testing so they never diverge).
     static let skinnedTabStripH: CGFloat = 11
-    private func skinnedTabStripY() -> CGFloat { bounds.height - 20 - Self.skinnedTabStripH }
+    /// Top chrome strip height: real pledit sprites are 20px; the built-in
+    /// classic strip is slimmed to 14px to match the main/EQ title bars.
+    private var skinnedTopH: CGFloat { WinampTheme.isUserSkin ? 20 : 14 }
+    private func skinnedTabStripY() -> CGFloat { bounds.height - skinnedTopH - Self.skinnedTabStripH }
     private func skinnedPlaylistTabRect() -> NSRect {
         NSRect(x: 16, y: skinnedTabStripY(),
                width: TextSpriteRenderer.width(of: "PLAYLIST"), height: Self.skinnedTabStripH)
@@ -375,10 +378,10 @@ class PlaylistView: NSView {
 
         // Top row: TL corner (25×20) + repeating top tiles + title bar centerpiece + TR corner
         if let tl = WinampTheme.sprite(.playlistTopLeftCorner(active: isActive)) {
-            tl.draw(in: snap(NSRect(x: 0, y: h - 20, width: 25, height: 20)))
+            tl.draw(in: snap(NSRect(x: 0, y: h - skinnedTopH, width: 25, height: skinnedTopH)))
         }
         if let tr = WinampTheme.sprite(.playlistTopRightCorner(active: isActive)) {
-            tr.draw(in: snap(NSRect(x: w - 25, y: h - 20, width: 25, height: 20)))
+            tr.draw(in: snap(NSRect(x: w - 25, y: h - skinnedTopH, width: 25, height: skinnedTopH)))
         }
 
         // Title centerpiece — pixel-align its rect first, then tile the gaps
@@ -387,7 +390,7 @@ class PlaylistView: NSView {
         // (a half-logical-pixel) is not aligned to a backing pixel.
         if let title = WinampTheme.sprite(.playlistTopTitleBar(active: isActive)) {
             let titleW: CGFloat = 100
-            let titleRect = snap(NSRect(x: (w - titleW) / 2, y: h - 20, width: titleW, height: 20))
+            let titleRect = snap(NSRect(x: (w - titleW) / 2, y: h - skinnedTopH, width: titleW, height: skinnedTopH))
             title.draw(in: titleRect)
 
             if let topTile = WinampTheme.sprite(.playlistTopTile(active: isActive)) {
@@ -395,14 +398,14 @@ class PlaylistView: NSView {
                 var x: CGFloat = 25
                 while x < titleRect.minX {
                     let end = min(x + 25, titleRect.minX)
-                    topTile.draw(in: snap(NSRect(x: x, y: h - 20, width: end - x, height: 20)))
+                    topTile.draw(in: snap(NSRect(x: x, y: h - skinnedTopH, width: end - x, height: skinnedTopH)))
                     x = end // use exact boundary, not accumulated addition
                 }
                 // Right gap: title end → TR corner start
                 x = titleRect.maxX
                 while x < w - 25 {
                     let end = min(x + 25, w - 25)
-                    topTile.draw(in: snap(NSRect(x: x, y: h - 20, width: end - x, height: 20)))
+                    topTile.draw(in: snap(NSRect(x: x, y: h - skinnedTopH, width: end - x, height: skinnedTopH)))
                     x = end
                 }
             }
@@ -411,16 +414,16 @@ class PlaylistView: NSView {
         // Sides: tile vertically, edge-to-edge
         if let lt = WinampTheme.sprite(.playlistLeftTile) {
             var y: CGFloat = 38
-            while y < h - 20 {
-                let end = min(y + 29, h - 20)
+            while y < h - skinnedTopH {
+                let end = min(y + 29, h - skinnedTopH)
                 lt.draw(in: snap(NSRect(x: 0, y: y, width: 12, height: end - y)))
                 y = end
             }
         }
         if let rt = WinampTheme.sprite(.playlistRightTile) {
             var y: CGFloat = 38
-            while y < h - 20 {
-                let end = min(y + 29, h - 20)
+            while y < h - skinnedTopH {
+                let end = min(y + 29, h - skinnedTopH)
                 rt.draw(in: snap(NSRect(x: w - 20, y: y, width: 20, height: end - y)))
                 y = end
             }
@@ -506,7 +509,7 @@ class PlaylistView: NSView {
     private func layoutSkinned() {
         let w = bounds.width
         let h = bounds.height
-        let topH: CGFloat = 20
+        let topH = skinnedTopH
         let bottomH: CGFloat = 38
         let leftW: CGFloat = 12
         let rightW: CGFloat = 20
@@ -1078,9 +1081,9 @@ class PlaylistView: NSView {
         guard WinampTheme.skinIsActive else { super.mouseDown(with: event); return }
         let point = convert(event.locationInWindow, from: nil)
 
-        // Title bar drag zone (top 20px) — the × baked into the top-right
+        // Title bar drag zone (top strip) — the × baked into the top-right
         // corner closes (hides) the playlist.
-        if point.y >= bounds.height - 20 {
+        if point.y >= bounds.height - skinnedTopH {
             if point.x >= bounds.width - 13 {
                 onCloseWindow?()
                 return

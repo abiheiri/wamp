@@ -16,31 +16,31 @@ enum ClassicPlaylist {
     // MARK: - Top strip (20 px tall)
 
     static func topTile(active: Bool) -> NSImage {
-        ClassicDraw.image(width: 25, height: 20) { rect in
+        ClassicDraw.image(width: 25, height: 14) { rect in
             drawTopBody(width: rect.width)
             drawPipes(from: 0, to: rect.width, active: active)
         }
     }
 
     static func topCorner(left: Bool, active: Bool) -> NSImage {
-        ClassicDraw.image(width: 25, height: 20) { rect in
+        ClassicDraw.image(width: 25, height: 14) { rect in
             drawTopBody(width: rect.width)
             if left {
                 drawPipes(from: 4, to: rect.width, active: active)
-                ClassicDraw.px(0, 0, 1, 20, edgeDark)
-                ClassicDraw.px(1, 1, 1, 19, edgeLight)
+                ClassicDraw.px(0, 0, 1, 14, edgeDark)
+                ClassicDraw.px(1, 1, 1, 13, edgeLight)
             } else {
                 // Pipes stop short of the baked close glyph.
                 drawPipes(from: 0, to: 11, active: active)
-                ClassicTitleBar.drawCloseGlyph(at: NSPoint(x: 13, y: 5))
-                ClassicDraw.px(24, 0, 1, 20, NSColor(hex: 0x14141D))
-                ClassicDraw.px(23, 1, 1, 19, NSColor(hex: 0x52525F))
+                ClassicTitleBar.drawCloseGlyph(at: NSPoint(x: 13, y: 3))
+                ClassicDraw.px(24, 0, 1, 14, NSColor(hex: 0x14141D))
+                ClassicDraw.px(23, 1, 1, 13, NSColor(hex: 0x52525F))
             }
         }
     }
 
     static func titleBar(active: Bool) -> NSImage {
-        ClassicDraw.image(width: 100, height: 20) { rect in
+        ClassicDraw.image(width: 100, height: 14) { rect in
             drawTopBody(width: rect.width)
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: WinampTheme.titleBarFont,
@@ -53,25 +53,25 @@ enum ClassicPlaylist {
             let tx = (rect.width - size.width) / 2
             drawPipes(from: 0, to: tx - 4, active: active)
             drawPipes(from: tx + size.width + 4, to: rect.width, active: active)
-            title.draw(at: NSPoint(x: tx, y: (20 - size.height) / 2), withAttributes: attrs)
+            title.draw(at: NSPoint(x: tx, y: (14 - size.height) / 2), withAttributes: attrs)
         }
     }
 
     private static func drawTopBody(width: CGFloat) {
-        ClassicDraw.px(0, 0, width, 20, body)
+        ClassicDraw.px(0, 0, width, 14, body)
         ClassicDraw.px(0, 0, width, 1, edgeDark)
         ClassicDraw.px(0, 1, width, 1, NSColor(hex: 0x565565))
-        ClassicDraw.px(0, 18, width, 1, bottomShade)
-        ClassicDraw.px(0, 19, width, 1, innerDark)
+        ClassicDraw.px(0, 12, width, 1, bottomShade)
+        ClassicDraw.px(0, 13, width, 1, innerDark)
     }
 
     /// The same embossed gold pipe rows as the main titlebar, centered in
-    /// the 20px strip (rows 6..12). Tiles continue the run seamlessly.
+    /// the 14px strip (rows 4..10). Tiles continue the run seamlessly.
     private static func drawPipes(from x0: CGFloat, to x1: CGFloat, active: Bool) {
         guard x1 - x0 >= 3 else { return }
         let rows = active ? ClassicPalette.pipeActive : ClassicPalette.pipeInactive
         for (i, color) in rows.enumerated() {
-            ClassicDraw.px(x0, 6 + CGFloat(i), x1 - x0, 1, color)
+            ClassicDraw.px(x0, 4 + CGFloat(i), x1 - x0, 1, color)
         }
     }
 
