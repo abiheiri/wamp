@@ -57,6 +57,26 @@ enum ClassicSprites {
         case .eqGraphBackground:
             return ClassicButtons.fromSheet(ClassicEQSheets.eqGraphBg,
                                             colors: ClassicEQSheets.colors)
+        case .playlistTopLeftCorner(let active):
+            return ClassicPlaylist.topCorner(left: true, active: active)
+        case .playlistTopRightCorner(let active):
+            return ClassicPlaylist.topCorner(left: false, active: active)
+        case .playlistTopTitleBar(let active):
+            return ClassicPlaylist.titleBar(active: active)
+        case .playlistTopTile(let active):
+            return ClassicPlaylist.topTile(active: active)
+        case .playlistLeftTile:
+            return ClassicPlaylist.leftTile()
+        case .playlistRightTile:
+            return ClassicPlaylist.rightTile()
+        case .playlistBottomLeftCorner:
+            return ClassicPlaylist.bottomLeftCorner()
+        case .playlistBottomTile:
+            return ClassicPlaylist.bottomTile()
+        case .playlistBottomRightCorner:
+            return ClassicPlaylist.bottomRightCorner()
+        case .playlistScrollHandle(let pressed):
+            return ClassicPlaylist.scrollHandle(pressed: pressed)
         default:
             return nil
         }
