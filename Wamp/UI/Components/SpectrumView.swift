@@ -2,12 +2,45 @@ import Cocoa
 import Combine
 
 class SpectrumView: NSView {
+    /// Classic Winamp vis modes, cycled by clicking the vis area.
+    enum Mode {
+        case spectrum
+        case oscilloscope
+    }
+
+    /// Current visualization. Clicking the view cycles spectrum ↔ oscilloscope,
+    /// like the main-window vis in Winamp 2.x.
+    var mode: Mode = .spectrum {
+        didSet { needsDisplay = true }
+    }
+
     var spectrumData: [Float] = [] {
         didSet {
             targetData = spectrumData
             startAnimationIfNeeded()
         }
     }
+
+    /// Raw waveform samples (-1…1) driving the oscilloscope; each new buffer
+    /// is a redraw, and the 60fps tick sweeps `scopeOffset` through the
+    /// buffer between arrivals so the trace never sits still.
+    var waveformData: [Float] = [] {
+        didSet {
+            if mode == .oscilloscope { needsDisplay = true }
+        }
+    }
+
+    /// Rolling read position for the oscilloscope window (see `tick`).
+    private var scopeOffset = 0
+
+    /// Samples per column: 76 columns × 2 ≈ 3.5ms of audio on screen, so
+    /// consecutive frames differ sharply — the classic twitchy scope look.
+    private let scopeStride = 2
+
+    /// Vertical gain: real program material rarely swings past ±0.5, which
+    /// draws a timid trace at 1:1. Winamp's scope fills the vis area.
+    private let scopeGain: CGFloat = 2.0
+
     var barCount: Int = 26
 
     /// Winamp convention: 16 vertical rows, each painted with viscolors[2..17] bottom→top.
@@ -65,6 +98,11 @@ class SpectrumView: NSView {
     }
 
     private func tick() {
+        // Sweep the oscilloscope's read window through the sample buffer so
+        // the trace updates every tick, not just when a new buffer arrives.
+        // 173 is odd/prime-ish so the sweep doesn't lock into a visual loop.
+        scopeOffset = (scopeOffset + 173) % 100_000
+
         if smoothedData.count != barCount { resetArrays() }
         let input = targetData
         let rows = Float(Self.rowCount)
@@ -103,8 +141,59 @@ class SpectrumView: NSView {
         }
     }
 
+    override func mouseDown(with event: NSEvent) {
+        mode = mode == .spectrum ? .oscilloscope : .spectrum
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
+        switch mode {
+        case .spectrum: drawSpectrum()
+        case .oscilloscope: drawOscilloscope()
+        }
+    }
+
+    /// Classic oscilloscope: a 1px stepped waveform trace across the vis
+    /// area, colored from the skin's viscolors 18–22 by how far the sample
+    /// swings from the center line (silence = flat center line). Only a
+    /// short window of samples is shown, read from a rolling offset, so the
+    /// trace jumps frame to frame like the original.
+    private func drawOscilloscope() {
+        let viscolors = WinampTheme.provider.viscolors
+        guard viscolors.count >= 24 else { return }
+
+        let wave = waveformData
+        let h = bounds.height
+        let midY = h / 2
+        let cols = max(1, Int(bounds.width))
+        var prevY = midY
+
+        let window = cols * scopeStride
+        let start = wave.count > window ? scopeOffset % (wave.count - window) : 0
+
+        for c in 0..<cols {
+            let sample: CGFloat
+            if wave.isEmpty {
+                sample = 0
+            } else {
+                let idx = min(start + c * scopeStride, wave.count - 1)
+                sample = max(-1, min(1, CGFloat(wave[idx]) * scopeGain))
+            }
+            let y = midY + sample * (h / 2 - 0.5)
+
+            // Winamp's five oscilloscope colors, banded by amplitude.
+            let band = min(4, Int(abs(sample) * 5))
+            viscolors[18 + band].setFill()
+
+            // Connect to the previous column with a vertical run so the
+            // trace reads as a continuous stepped line.
+            let y0 = min(prevY, y), y1 = max(prevY, y)
+            NSRect(x: CGFloat(c), y: y0, width: 1, height: max(1, y1 - y0)).fill()
+            prevY = y
+        }
+    }
+
+    private func drawSpectrum() {
         guard smoothedData.count == barCount else { return }
 
         let barWidth: CGFloat = 3

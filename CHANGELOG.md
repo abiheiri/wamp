@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.2.10] - 2026-07-09
+
+### Added
+
+- **Oscilloscope visualization.** Clicking the vis area in the main window
+  now cycles between the spectrum analyzer bars and a classic Winamp
+  oscilloscope waveform trace, drawn with the skin's viscolors.
 
 ### Fixed
 

@@ -66,6 +66,10 @@ class AudioEngine: ObservableObject {
     }
     @Published var preampGain: Float = 0 // dB, -12 to +12
     @Published var spectrumData: [Float] = Array(repeating: 0, count: 32)
+    /// Raw waveform samples (-1…1) for the oscilloscope visualization — a
+    /// slice of the same tap buffer that feeds the spectrum FFT. The view
+    /// picks its own short window out of this at draw time.
+    @Published var waveformData: [Float] = Array(repeating: 0, count: 76)
 
     /// Whether the transport is driving the local playlist or a SHOUTcast stream.
     @Published private(set) var activeSource: PlaybackSource = .local
@@ -766,12 +770,22 @@ class AudioEngine: ObservableObject {
     private func removeSpectrumTap() {
         engine.mainMixerNode.removeTap(onBus: 0)
         spectrumData = Array(repeating: 0, count: 32)
+        waveformData = Array(repeating: 0, count: 76)
     }
 
     private func processSpectrumData(buffer: AVAudioPCMBuffer) {
         guard let channelData = buffer.floatChannelData?[0] else { return }
         let frameCount = Int(buffer.frameLength)
         guard frameCount > 0 else { return }
+
+        // Oscilloscope: hand the view a raw slice of recent samples. The view
+        // sweeps a short window through it at 60fps, so it stays lively even
+        // when tap buffers arrive slowly.
+        let copyCount = min(1024, frameCount)
+        let wave = Array(UnsafeBufferPointer(start: channelData, count: copyCount))
+        DispatchQueue.main.async { [weak self] in
+            self?.waveformData = wave
+        }
 
         // Use power-of-2 size for FFT
         let log2n = vDSP_Length(log2(Float(frameCount)))

@@ -642,6 +642,12 @@ class MainPlayerView: NSView {
             .sink { [weak self] data in self?.spectrumView.spectrumData = data }
             .store(in: &cancellables)
 
+        // Oscilloscope waveform
+        audioEngine.$waveformData
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] data in self?.spectrumView.waveformData = data }
+            .store(in: &cancellables)
+
         // Stream info: the connecting/playing/failed phase, live ICY now-playing,
         // and active-source flips all drive the persistent marquee.
         Publishers.Merge3(
