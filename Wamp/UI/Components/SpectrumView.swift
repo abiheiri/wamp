@@ -21,13 +21,25 @@ class SpectrumView: NSView {
         }
     }
 
-    /// Raw waveform snapshot (-1…1) driving the oscilloscope; each new buffer
-    /// is a redraw. The spectrum's decay timer handles spectrum-mode redraws.
+    /// Raw waveform samples (-1…1) driving the oscilloscope; each new buffer
+    /// is a redraw, and the 60fps tick sweeps `scopeOffset` through the
+    /// buffer between arrivals so the trace never sits still.
     var waveformData: [Float] = [] {
         didSet {
             if mode == .oscilloscope { needsDisplay = true }
         }
     }
+
+    /// Rolling read position for the oscilloscope window (see `tick`).
+    private var scopeOffset = 0
+
+    /// Samples per column: 76 columns × 2 ≈ 3.5ms of audio on screen, so
+    /// consecutive frames differ sharply — the classic twitchy scope look.
+    private let scopeStride = 2
+
+    /// Vertical gain: real program material rarely swings past ±0.5, which
+    /// draws a timid trace at 1:1. Winamp's scope fills the vis area.
+    private let scopeGain: CGFloat = 2.0
 
     var barCount: Int = 26
 
@@ -86,6 +98,11 @@ class SpectrumView: NSView {
     }
 
     private func tick() {
+        // Sweep the oscilloscope's read window through the sample buffer so
+        // the trace updates every tick, not just when a new buffer arrives.
+        // 173 is odd/prime-ish so the sweep doesn't lock into a visual loop.
+        scopeOffset = (scopeOffset + 173) % 100_000
+
         if smoothedData.count != barCount { resetArrays() }
         let input = targetData
         let rows = Float(Self.rowCount)
@@ -138,7 +155,9 @@ class SpectrumView: NSView {
 
     /// Classic oscilloscope: a 1px stepped waveform trace across the vis
     /// area, colored from the skin's viscolors 18–22 by how far the sample
-    /// swings from the center line (silence = flat center line).
+    /// swings from the center line (silence = flat center line). Only a
+    /// short window of samples is shown, read from a rolling offset, so the
+    /// trace jumps frame to frame like the original.
     private func drawOscilloscope() {
         let viscolors = WinampTheme.provider.viscolors
         guard viscolors.count >= 24 else { return }
@@ -149,13 +168,16 @@ class SpectrumView: NSView {
         let cols = max(1, Int(bounds.width))
         var prevY = midY
 
+        let window = cols * scopeStride
+        let start = wave.count > window ? scopeOffset % (wave.count - window) : 0
+
         for c in 0..<cols {
             let sample: CGFloat
             if wave.isEmpty {
                 sample = 0
             } else {
-                let idx = min(c * wave.count / cols, wave.count - 1)
-                sample = CGFloat(max(-1, min(1, wave[idx])))
+                let idx = min(start + c * scopeStride, wave.count - 1)
+                sample = max(-1, min(1, CGFloat(wave[idx]) * scopeGain))
             }
             let y = midY + sample * (h / 2 - 0.5)
 

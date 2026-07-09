@@ -66,9 +66,9 @@ class AudioEngine: ObservableObject {
     }
     @Published var preampGain: Float = 0 // dB, -12 to +12
     @Published var spectrumData: [Float] = Array(repeating: 0, count: 32)
-    /// Raw waveform snapshot (-1…1) for the oscilloscope visualization,
-    /// downsampled from the same tap buffer that feeds the spectrum FFT.
-    /// 76 points — the classic vis area is 76 px wide.
+    /// Raw waveform samples (-1…1) for the oscilloscope visualization — a
+    /// slice of the same tap buffer that feeds the spectrum FFT. The view
+    /// picks its own short window out of this at draw time.
     @Published var waveformData: [Float] = Array(repeating: 0, count: 76)
 
     /// Whether the transport is driving the local playlist or a SHOUTcast stream.
@@ -778,12 +778,11 @@ class AudioEngine: ObservableObject {
         let frameCount = Int(buffer.frameLength)
         guard frameCount > 0 else { return }
 
-        // Oscilloscope: pick evenly spaced samples straight from the buffer.
-        let pointCount = 76
-        var wave = [Float](repeating: 0, count: pointCount)
-        for i in 0..<pointCount {
-            wave[i] = channelData[i * frameCount / pointCount]
-        }
+        // Oscilloscope: hand the view a raw slice of recent samples. The view
+        // sweeps a short window through it at 60fps, so it stays lively even
+        // when tap buffers arrive slowly.
+        let copyCount = min(1024, frameCount)
+        let wave = Array(UnsafeBufferPointer(start: channelData, count: copyCount))
         DispatchQueue.main.async { [weak self] in
             self?.waveformData = wave
         }
