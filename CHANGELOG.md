@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- Collapsing to the windowshade no longer cuts off the top of the time
+  digits until a playing track's next tick redrew them. The shade now
+  snaps open and closed instantly, like classic Winamp.
+
 ## [1.2.9] - 2026-07-07
 
 ### Fixed
