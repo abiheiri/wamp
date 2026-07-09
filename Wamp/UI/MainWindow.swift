@@ -33,7 +33,12 @@ class MainWindow: NSWindow {
             guard windowShade != oldValue else { return }
             mainPlayerView.isWindowShade = windowShade
             updateSectionVisibility()
-            recalculateSize()
+            // Instant resize, like classic Winamp's windowshade. Animating the
+            // collapse also leaves the strip showing the second-to-last
+            // animation frame's buffer (one step taller), which crops the top
+            // of the shade readout — e.g. the time digits — until the next
+            // redraw (a playback tick) submits a fresh frame.
+            recalculateSize(animated: false)
         }
     }
 
@@ -111,7 +116,7 @@ class MainWindow: NSWindow {
         }
     }
 
-    func recalculateSize() {
+    func recalculateSize(animated: Bool = true) {
         var height: CGFloat = mainPlayerView.desiredHeight
         if !windowShade {
             if showEqualizer { height += equalizerView.desiredHeight }
@@ -129,7 +134,7 @@ class MainWindow: NSWindow {
             width: scaledWidth,
             height: scaledHeight
         )
-        setFrame(newFrame, display: true, animate: true)
+        setFrame(newFrame, display: true, animate: animated)
 
         contentView?.frame = NSRect(x: 0, y: 0, width: scaledWidth, height: scaledHeight)
         contentView?.setBoundsSize(NSSize(width: WinampTheme.windowWidth, height: height))
