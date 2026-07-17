@@ -55,6 +55,13 @@ enum RadioGenreUnion {
         "hip hop": "Rap",
     ]
 
+    /// Tags too generic to mean anything as a genre — hugely popular in the
+    /// community data but useless as menu entries.
+    static let ignoredTags: Set<String> = [
+        "music", "radio", "fm", "am", "various", "local", "misc", "other",
+        "musica", "música", "estación", "estacion", "entertainment", "juvenil",
+    ]
+
     /// Default Radio Browser tags for a SHOUTcast genre name.
     private static func tagsFor(scGenre name: String) -> [String] {
         aliases[name] ?? [name.lowercased()]
@@ -95,7 +102,7 @@ enum RadioGenreUnion {
 
         var leftovers: [RadioGenre] = []
         for tag in topTags where tag.stationcount >= minStationCount {
-            guard !covered.contains(tag.name) else { continue }
+            guard !covered.contains(tag.name), !ignoredTags.contains(tag.name) else { continue }
             covered.insert(tag.name)
             let entry = RadioGenre(name: displayName(forTag: tag.name),
                                    shoutcastGenre: nil,

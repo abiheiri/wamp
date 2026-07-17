@@ -87,6 +87,13 @@ struct RadioGenreTests {
         #expect(union[0].subgenres.isEmpty)
     }
 
+    @Test func build_junkTags_areExcluded() {
+        // "music" and "radio" are huge Radio Browser tags but meaningless as genres.
+        let union = RadioGenreUnion.build(shoutcastTree: [scGenre("Rock")],
+                                          topTags: [tag("music", count: 4900), tag("radio", count: 2100)])
+        #expect(union.last?.name == "Rock")
+    }
+
     @Test func build_noMoreGenresEntry_whenNothingLeftOver() {
         let union = RadioGenreUnion.build(shoutcastTree: [scGenre("Rock")],
                                           topTags: [tag("rock", count: 9000)])
