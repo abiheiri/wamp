@@ -210,7 +210,7 @@ class PlaylistView: NSView {
     /// station isn't pinned here: mixing "what's playing" into "what I'm browsing"
     /// is confusing across genre changes. Favoriting a finder-played station is
     /// handled in the finder and the GENRE menu's "★ Add current" item instead.)
-    private var displayedStations: [ShoutcastStation] {
+    private var displayedStations: [RadioStation] {
         radioManager?.filteredStations ?? []
     }
 
@@ -236,24 +236,28 @@ class PlaylistView: NSView {
         }
         menu.addItem(.separator())
 
-        let tree = radioManager?.genres ?? ShoutcastGenre.bundledDefaults
+        let tree = radioManager?.genres ?? RadioManager.defaultGenres
         for main in tree {
             let item = NSMenuItem(title: main.name, action: nil, keyEquivalent: "")
             if main.subgenres.isEmpty {
                 item.action = #selector(genreMenuPick(_:))
                 item.target = self
-                item.representedObject = main.name
+                item.representedObject = main
             } else {
                 let sub = NSMenu()
-                let all = NSMenuItem(title: "All \(main.name)", action: #selector(genreMenuPick(_:)), keyEquivalent: "")
-                all.target = self
-                all.representedObject = main.name
-                sub.addItem(all)
-                sub.addItem(.separator())
+                // Container-only entries (e.g. "More genres") have nothing of
+                // their own to browse, so they get no "All …" lead item.
+                if main.shoutcastGenre != nil || !main.tags.isEmpty {
+                    let all = NSMenuItem(title: "All \(main.name)", action: #selector(genreMenuPick(_:)), keyEquivalent: "")
+                    all.target = self
+                    all.representedObject = main
+                    sub.addItem(all)
+                    sub.addItem(.separator())
+                }
                 for g in main.subgenres {
                     let it = NSMenuItem(title: g.name, action: #selector(genreMenuPick(_:)), keyEquivalent: "")
                     it.target = self
-                    it.representedObject = g.name
+                    it.representedObject = g
                     sub.addItem(it)
                 }
                 item.submenu = sub
@@ -270,8 +274,8 @@ class PlaylistView: NSView {
     }
 
     @objc private func genreMenuPick(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String, let rm = radioManager else { return }
-        Task { @MainActor in await rm.loadGenre(name) }
+        guard let genre = sender.representedObject as? RadioGenre, let rm = radioManager else { return }
+        Task { @MainActor in await rm.loadGenre(genre) }
     }
 
     @objc private func showFavoritesAction() {
@@ -280,7 +284,7 @@ class PlaylistView: NSView {
     }
 
     @objc private func toggleFavoriteAction(_ sender: NSMenuItem) {
-        guard let station = sender.representedObject as? ShoutcastStation, let rm = radioManager else { return }
+        guard let station = sender.representedObject as? RadioStation, let rm = radioManager else { return }
         Task { @MainActor in rm.toggleFavorite(station) }
     }
 
@@ -905,8 +909,8 @@ class PlaylistView: NSView {
 
     private func promptRadioSearch() {
         let alert = NSAlert()
-        alert.messageText = "Search SHOUTcast"
-        alert.informativeText = "Type a station name or keyword to search all of SHOUTcast."
+        alert.messageText = "Search Radio"
+        alert.informativeText = "Type a station name or keyword to search the radio directories."
         let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 22))
         alert.accessoryView = input
         alert.addButton(withTitle: "Search")
@@ -1279,7 +1283,7 @@ extension PlaylistView: NSTableViewDataSource, NSTableViewDelegate {
         // dropped — it's redundant with the genre you picked, and width is tight.
         var parts: [String] = []
         if station.bitrate > 0 { parts.append("\(station.bitrate)k") }
-        parts.append(station.listenersDisplay)
+        parts.append(station.popularityDisplay)
         let infoLabel = NSTextField(labelWithString: parts.joined(separator: " · "))
         infoLabel.font = font
         infoLabel.textColor = isCurrent ? currentColor : secondaryColor

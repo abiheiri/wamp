@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.11] - 2026-07-16
+
+### Added
+
+- **Radio Browser directory.** The Radio tab now searches and browses the
+  community radio-browser.info directory alongside SHOUTcast, merged into
+  one seamless station list — same genre menu, same search, thousands more
+  stations. Popular Radio Browser genres SHOUTcast never indexed (synthwave,
+  lofi, k-pop, and more) appear as new subgenres or under "More genres".
+  If one directory is down, the other keeps working ("partial" shows in the
+  status line). Existing SHOUTcast favorites carry over unchanged.
+
 ## [1.2.10] - 2026-07-09
 
 ### Added

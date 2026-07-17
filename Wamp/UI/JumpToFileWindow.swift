@@ -34,7 +34,7 @@ final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegat
     private var candidates: [JumpFilter.Candidate] = []
 
     // Radio state
-    private var radioStations: [ShoutcastStation] = []
+    private var radioStations: [RadioStation] = []
     private var radioSearchTask: Task<Void, Never>?
     private var radioDebounce: Timer?
 
@@ -310,7 +310,7 @@ final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegat
     }
 
     @objc private func favoriteMenuAction(_ sender: NSMenuItem) {
-        guard let station = sender.representedObject as? ShoutcastStation else { return }
+        guard let station = sender.representedObject as? RadioStation else { return }
         applyFavoriteToggle(station)
     }
 
@@ -319,7 +319,7 @@ final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegat
         applyFavoriteToggle(radioStations[row])
     }
 
-    private func applyFavoriteToggle(_ station: ShoutcastStation) {
+    private func applyFavoriteToggle(_ station: RadioStation) {
         guard let rm = radioManager else { return }
         let wasFavorite = rm.isFavorite(station)
         rm.toggleFavorite(station)
@@ -354,7 +354,7 @@ final class JumpToFileWindow: NSPanel, NSTableViewDataSource, NSTableViewDelegat
             let s = radioStations[row]
             var meta: [String] = []
             if s.bitrate > 0 { meta.append("\(s.bitrate)k") }
-            meta.append("\(s.listenersDisplay) listeners")
+            meta.append(s.popularityDisplay)
             cell.textField?.stringValue = "\(s.name)   —   \(meta.joined(separator: " · "))"
         } else {
             guard row < matches.count else { return cell }
