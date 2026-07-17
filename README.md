@@ -43,8 +43,10 @@ No Electron. No web views. No dependencies. Just Swift, AppKit, and nostalgia.
 - ⚡ **Jump to File** — incremental search over 10k-track playlists in under 16 ms
 - 🍎 **First-class macOS citizen** — media keys, Control Center "Now Playing",
   menu bar tray, full state restore
-- 📻 **SHOUTcast Radio** — browse stations by genre or search, stream live MP3/AAC
-  through the full DSP chain (EQ, spectrum, volume, balance)
+- 📻 **Internet Radio** — SHOUTcast and the community
+  [radio-browser.info](https://www.radio-browser.info) directory merged into one
+  station list; browse by genre or search, stream live MP3/AAC through the full
+  DSP chain (EQ, spectrum, volume, balance)
 
 ## 🎵 Player
 
@@ -91,8 +93,11 @@ A few classics to try live in [`skins/`](skins): *base-2.91*, *Blue Plasma*,
 - **Import from Music Library…** — pulls local tracks and playlists from Music.app
   (via `ITLibrary`, with an `iTunes Music Library.xml` fallback); streaming-only
   and missing files are skipped and counted
-- **SHOUTcast Radio tab** — browse stations by genre or search, double-click to
-  play; streams flow through the same DSP chain as local files
+- **Radio tab** — one seamless directory combining SHOUTcast and Radio Browser:
+  browse by genre (including scenes SHOUTcast never indexed — synthwave, lofi,
+  k-pop) or search both at once, double-click to play; streams flow through the
+  same DSP chain as local files, and if one directory is down the other keeps
+  working
 - Skinned scrollbar, skin-correct row colors, live track-count/duration footer
 
 <!-- PLACEHOLDER(jump-gif): short GIF — Cmd+J opens Jump to File over a large
@@ -193,14 +198,15 @@ tracks — both route audio through a system-managed graph that bypasses our DSP
 so the EQ and spectrum analyzer would be lying to you. Details in
 [docs/non-goals.md](docs/non-goals.md).
 
-SHOUTcast internet radio **is** supported: the raw MP3/AAC stream is decoded by
-Wamp and routed through its own `AVAudioEngine`, so EQ, visualization, volume,
-and balance all work exactly as they do for local files.
+Internet radio **is** supported (SHOUTcast and radio-browser.info, merged into
+one station list): the raw MP3/AAC stream is decoded by Wamp and routed through
+its own `AVAudioEngine`, so EQ, visualization, volume, and balance all work
+exactly as they do for local files.
 
 ## Authors
 
 - **Valerii Bakalenko** — original author and maintainer
-- **AL Biheiri** — faithfully recreated the original Winamp UI; SHOUTcast radio
+- **AL Biheiri** — faithfully recreated the original Winamp UI; internet radio
 
 ---
 
